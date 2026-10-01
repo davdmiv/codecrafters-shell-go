@@ -34,16 +34,26 @@ func main() {
 			target = tokens[1]
 		}
 
-		if baseCmd == "type" && slices.Contains(builtins, target) {
-			fmt.Println(target + " is a shell builtin")
-		} else if path, err := exec.LookPath(target); err == nil {
-			fmt.Printf("%s is %s\n", target, path)
-		} else if baseCmd == "type" {
-			fmt.Println(target + ": not found")
-		} else if command == "exit" {
+		if baseCmd == "type" {
+			if slices.Contains(builtins, target) {
+				fmt.Println(target + " is a shell builtin")
+			} else if path, err := exec.LookPath(target); err == nil {
+				fmt.Printf("%s is %s\n", target, path)
+			} else {
+				fmt.Println(target + ": not found")
+			}
+		} else if baseCmd == "exit" {
 			break
-		} else if strings.HasPrefix(command, "echo ") {
+		} else if baseCmd == "echo" {
 			fmt.Println(command[5:])
+		} else if path, err := exec.LookPath(baseCmd); err == nil {
+			var cmd *exec.Cmd
+			cmd = exec.Command(path, command[len(baseCmd)+1:])
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				fmt.Printf("Ошибка: %v\n", err)
+			}
+			fmt.Println(string(output))
 		} else {
 			fmt.Println(command + ": command not found")
 		}
