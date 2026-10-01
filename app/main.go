@@ -46,7 +46,7 @@ func main() {
 		} else if baseCmd == "exit" {
 			break
 		} else if baseCmd == "echo" {
-			fmt.Println(command[5:])
+			fmt.Println(strings.Join(parseInput(command[5:]), " "))
 		} else if baseCmd == "pwd" {
 			dir, _ := os.Getwd()
 			fmt.Println(dir)
@@ -59,7 +59,7 @@ func main() {
 				}
 				target = home
 			}
-			
+
 			path := filepath.Clean(target)
 
 			if err := os.Chdir(path); err != nil {
@@ -74,4 +74,58 @@ func main() {
 			fmt.Println(command + ": command not found")
 		}
 	}
+}
+
+func parseInput(s string) []string {
+	isEnd := false
+	var startIdx int
+
+	result := make([]string, 0)
+	lastCh := false
+	var startCh int
+	quotesNear := false
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\'' {
+			if isEnd {
+				isEnd = false
+
+				if quotesNear {
+					result[len(result)-1] = result[len(result)-1] + s[startIdx:i]
+				} else {
+					result = append(result, s[startIdx:i])
+				}
+
+				if i+1 < len(s) {
+					if s[i+1] == '\'' {
+						quotesNear = true
+					}
+				}
+
+				continue
+			} else {
+				isEnd = true
+				startIdx = i + 1
+			}
+		}
+
+		if isEnd {
+			continue
+		}
+
+		if s[i] == ' ' {
+			if lastCh {
+				result = append(result, s[startCh:i])
+				lastCh = false
+			}
+		} else if lastCh == false {
+			startCh = i
+			lastCh = true
+		}
+	}
+
+	if lastCh {
+		result = append(result, s[startCh:])
+	}
+
+	return result
 }
