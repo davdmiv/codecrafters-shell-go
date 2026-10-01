@@ -14,7 +14,7 @@ var _ = fmt.Print
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
-	builtins := []string{"echo", "exit", "type", "pwd"}
+	builtins := []string{"echo", "exit", "type", "pwd", "cd"}
 
 	for {
 		fmt.Print("$ ")
@@ -49,6 +49,8 @@ func main() {
 		} else if baseCmd == "pwd" {
 			dir, _ := os.Getwd()
 			fmt.Println(dir)
+		} else if baseCmd == "cd" {
+			os.Chdir(target)
 		} else if _, err := exec.LookPath(baseCmd); err == nil {
 			cmd := exec.Command(baseCmd, tokens[1:]...)
 			cmd.Stdout = os.Stdout
