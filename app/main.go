@@ -50,7 +50,9 @@ func main() {
 			dir, _ := os.Getwd()
 			fmt.Println(dir)
 		} else if baseCmd == "cd" {
-			os.Chdir(target)
+			if err := os.Chdir(target); err != nil {
+				fmt.Printf("cd: %s: No such file or directory\n", target)
+			}
 		} else if _, err := exec.LookPath(baseCmd); err == nil {
 			cmd := exec.Command(baseCmd, tokens[1:]...)
 			cmd.Stdout = os.Stdout
