@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
@@ -46,7 +47,7 @@ func main() {
 		} else if baseCmd == "exit" {
 			break
 		} else if baseCmd == "echo" {
-			fmt.Println(strings.Join(parseInput(command[5:]), " "))
+			fmt.Println(strings.Join(splitArgs(command[5:]), " "))
 		} else if baseCmd == "pwd" {
 			dir, _ := os.Getwd()
 			fmt.Println(dir)
@@ -76,56 +77,91 @@ func main() {
 	}
 }
 
-func parseInput(s string) []string {
-	isEnd := false
-	var startIdx int
+func splitArgs(cmdline string) []string {
+	var args []string
 
-	result := make([]string, 0)
-	lastCh := false
-	var startCh int
-	quotesNear := false
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\'' {
-			if isEnd {
-				isEnd = false
+	var arg strings.Builder
+	var parenthesis = '\x00'
 
-				if quotesNear {
-					result[len(result)-1] = result[len(result)-1] + s[startIdx:i]
-				} else {
-					result = append(result, s[startIdx:i])
-				}
+	for _, r := range cmdline {
 
-				if i+1 < len(s) {
-					if s[i+1] == '\'' {
-						quotesNear = true
-					}
-				}
-
-				continue
+		if (parenthesis == '\x00' || parenthesis == r) && (r == '\'' || r == '"') {
+			if parenthesis == '\x00' {
+				parenthesis = r
 			} else {
-				isEnd = true
-				startIdx = i + 1
+				parenthesis = '\x00'
 			}
-		}
-
-		if isEnd {
 			continue
 		}
 
-		if s[i] == ' ' {
-			if lastCh {
-				result = append(result, s[startCh:i])
-				lastCh = false
+		if parenthesis == '\x00' && unicode.IsSpace(r) {
+			if arg.Len() != 0 {
+				args = append(args, arg.String())
+				arg.Reset()
 			}
-		} else if lastCh == false {
-			startCh = i
-			lastCh = true
+			continue
 		}
+
+		arg.WriteRune(r)
 	}
 
-	if lastCh {
-		result = append(result, s[startCh:])
+	if arg.Len() > 0 {
+		args = append(args, arg.String())
 	}
 
-	return result
+	return args
 }
+
+//func parseInput(s string) []string {
+//	isEnd := false
+//	var startIdx int
+//
+//	result := make([]string, 0)
+//	lastCh := false
+//	var startCh int
+//	quotesNear := false
+//	for i := 0; i < len(s); i++ {
+//		if s[i] == '\'' {
+//			if isEnd {
+//				isEnd = false
+//
+//				if quotesNear {
+//					result[len(result)-1] = result[len(result)-1] + s[startIdx:i]
+//				} else {
+//					result = append(result, s[startIdx:i])
+//				}
+//
+//				if i+1 < len(s) {
+//					if s[i+1] == '\'' {
+//						quotesNear = true
+//					}
+//				}
+//
+//				continue
+//			} else {
+//				isEnd = true
+//				startIdx = i + 1
+//			}
+//		}
+//
+//		if isEnd {
+//			continue
+//		}
+//
+//		if s[i] == ' ' {
+//			if lastCh {
+//				result = append(result, s[startCh:i])
+//				lastCh = false
+//			}
+//		} else if lastCh == false {
+//			startCh = i
+//			lastCh = true
+//		}
+//	}
+//
+//	if lastCh {
+//		result = append(result, s[startCh:])
+//	}
+//
+//	return result
+//}
