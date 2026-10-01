@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"slices"
@@ -46,6 +47,12 @@ func main() {
 			break
 		} else if baseCmd == "echo" {
 			fmt.Println(command[5:])
+		} else if baseCmd == "pwd" {
+			dir, err := os.Getwd()
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(dir)
 		} else if _, err := exec.LookPath(baseCmd); err == nil {
 			cmd := exec.Command(baseCmd, tokens[1:]...)
 			cmd.Stdout = os.Stdout
