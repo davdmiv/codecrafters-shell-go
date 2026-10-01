@@ -48,7 +48,7 @@ func main() {
 			fmt.Println(command[5:])
 		} else if path, err := exec.LookPath(baseCmd); err == nil {
 			var cmd *exec.Cmd
-			cmd = exec.Command(path, command[len(baseCmd)+1:])
+			cmd = exec.Command(path, tokens[1:]...)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				fmt.Printf("Ошибка: %v\n", err)
