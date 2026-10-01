@@ -27,7 +27,7 @@ func main() {
 		}
 
 		command = strings.TrimSpace(command)
-		tokens := strings.Split(command, " ")
+		tokens := splitArgs(command)
 
 		baseCmd := tokens[0]
 
@@ -111,57 +111,3 @@ func splitArgs(cmdline string) []string {
 
 	return args
 }
-
-//func parseInput(s string) []string {
-//	isEnd := false
-//	var startIdx int
-//
-//	result := make([]string, 0)
-//	lastCh := false
-//	var startCh int
-//	quotesNear := false
-//	for i := 0; i < len(s); i++ {
-//		if s[i] == '\'' {
-//			if isEnd {
-//				isEnd = false
-//
-//				if quotesNear {
-//					result[len(result)-1] = result[len(result)-1] + s[startIdx:i]
-//				} else {
-//					result = append(result, s[startIdx:i])
-//				}
-//
-//				if i+1 < len(s) {
-//					if s[i+1] == '\'' {
-//						quotesNear = true
-//					}
-//				}
-//
-//				continue
-//			} else {
-//				isEnd = true
-//				startIdx = i + 1
-//			}
-//		}
-//
-//		if isEnd {
-//			continue
-//		}
-//
-//		if s[i] == ' ' {
-//			if lastCh {
-//				result = append(result, s[startCh:i])
-//				lastCh = false
-//			}
-//		} else if lastCh == false {
-//			startCh = i
-//			lastCh = true
-//		}
-//	}
-//
-//	if lastCh {
-//		result = append(result, s[startCh:])
-//	}
-//
-//	return result
-//}
