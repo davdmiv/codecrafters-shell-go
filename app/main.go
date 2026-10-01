@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"slices"
 	"strings"
 )
@@ -26,10 +27,19 @@ func main() {
 		command = strings.TrimSpace(command)
 		tokens := strings.Split(command, " ")
 
-		if tokens[0] == "type" && slices.Contains(builtins, tokens[1]) {
-			fmt.Println(tokens[1] + " is a shell builtin")
-		} else if tokens[0] == "type" {
-			fmt.Println(tokens[1] + ": not found")
+		baseCmd := tokens[0]
+
+		var target string
+		if len(tokens) > 1 {
+			target = tokens[1]
+		}
+
+		if baseCmd == "type" && slices.Contains(builtins, target) {
+			fmt.Println(target + " is a shell builtin")
+		} else if path, err := exec.LookPath(target); err == nil {
+			fmt.Printf("%s is %s\n", target, path)
+		} else if baseCmd == "type" {
+			fmt.Println(target + ": not found")
 		} else if command == "exit" {
 			break
 		} else if strings.HasPrefix(command, "echo ") {
