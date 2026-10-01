@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -50,8 +51,19 @@ func main() {
 			dir, _ := os.Getwd()
 			fmt.Println(dir)
 		} else if baseCmd == "cd" {
-			if err := os.Chdir(target); err != nil {
-				fmt.Printf("cd: %s: No such file or directory\n", target)
+			if target == "~" {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
+				target = home
+			}
+			
+			path := filepath.Clean(target)
+
+			if err := os.Chdir(path); err != nil {
+				fmt.Printf("cd: %s: No such file or directory\n", path)
 			}
 		} else if _, err := exec.LookPath(baseCmd); err == nil {
 			cmd := exec.Command(baseCmd, tokens[1:]...)
