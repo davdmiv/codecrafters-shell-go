@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,7 +28,12 @@ func main() {
 		}
 
 		command = strings.TrimSpace(command)
-		tokens := splitArgs(command)
+
+		tokens, err := splitArgs(command)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
 
 		baseCmd := tokens[0]
 
@@ -47,7 +53,12 @@ func main() {
 		} else if baseCmd == "exit" {
 			break
 		} else if baseCmd == "echo" {
-			fmt.Println(strings.Join(splitArgs(command[5:]), " "))
+			tokens, err = splitArgs(command[5:])
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			fmt.Println(strings.Join(tokens, " "))
 		} else if baseCmd == "pwd" {
 			dir, _ := os.Getwd()
 			fmt.Println(dir)
@@ -77,37 +88,55 @@ func main() {
 	}
 }
 
-func splitArgs(cmdline string) []string {
+func splitArgs(input string) ([]string, error) {
 	var args []string
-
 	var arg strings.Builder
-	var parenthesis = '\x00'
+	isSingleQuotes := false
+	isDoubleQuotes := false
+	isBackslash := false
+	inArg := false
 
-	for _, r := range cmdline {
-
-		if (parenthesis == '\x00' || parenthesis == r) && (r == '\'' || r == '"') {
-			if parenthesis == '\x00' {
-				parenthesis = r
-			} else {
-				parenthesis = '\x00'
-			}
-			continue
-		}
-
-		if parenthesis == '\x00' && unicode.IsSpace(r) {
-			if arg.Len() != 0 {
+	for _, r := range input {
+		switch {
+		case isBackslash:
+			arg.WriteRune(r)
+			inArg = true
+			isBackslash = false
+		case r == '\'' && !isDoubleQuotes:
+			isSingleQuotes = !isSingleQuotes
+			inArg = true
+		case r == '"' && !isSingleQuotes:
+			isDoubleQuotes = !isDoubleQuotes
+			inArg = true
+		case r == '\\' && !isDoubleQuotes && !isSingleQuotes:
+			isBackslash = true
+		case !isSingleQuotes && !isDoubleQuotes && unicode.IsSpace(r):
+			if inArg {
 				args = append(args, arg.String())
 				arg.Reset()
+				inArg = false
 			}
-			continue
+		default:
+			arg.WriteRune(r)
+			inArg = true
 		}
-
-		arg.WriteRune(r)
 	}
 
-	if arg.Len() > 0 {
+	if isBackslash {
+		return nil, errors.New("unterminated escape")
+	}
+
+	if isSingleQuotes {
+		return nil, errors.New("unterminated single quote")
+	}
+
+	if isDoubleQuotes {
+		return nil, errors.New("unterminated double quote")
+	}
+
+	if inArg {
 		args = append(args, arg.String())
 	}
 
-	return args
+	return args, nil
 }
