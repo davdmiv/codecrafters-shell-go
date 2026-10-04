@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -98,6 +97,9 @@ func splitArgs(input string) ([]string, error) {
 
 	for _, r := range input {
 		switch {
+		case r == '\\' && isBackslash:
+			arg.WriteRune(r)
+			isBackslash = false
 		case isBackslash:
 			arg.WriteRune(r)
 			inArg = true
@@ -108,7 +110,7 @@ func splitArgs(input string) ([]string, error) {
 		case r == '"' && !isSingleQuotes:
 			isDoubleQuotes = !isDoubleQuotes
 			inArg = true
-		case r == '\\' && !isDoubleQuotes && !isSingleQuotes:
+		case r == '\\':
 			isBackslash = true
 		case !isSingleQuotes && !isDoubleQuotes && unicode.IsSpace(r):
 			if inArg {
@@ -120,18 +122,6 @@ func splitArgs(input string) ([]string, error) {
 			arg.WriteRune(r)
 			inArg = true
 		}
-	}
-
-	if isBackslash {
-		return nil, errors.New("unterminated escape")
-	}
-
-	if isSingleQuotes {
-		return nil, errors.New("unterminated single quote")
-	}
-
-	if isDoubleQuotes {
-		return nil, errors.New("unterminated double quote")
 	}
 
 	if inArg {
