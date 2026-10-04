@@ -100,6 +100,12 @@ func splitArgs(input string) ([]string, error) {
 		case r == '\\' && isBackslash:
 			arg.WriteRune(r)
 			isBackslash = false
+		case r == '"' && isSingleQuotes:
+			if isBackslash {
+				arg.WriteRune('\\')
+				isBackslash = false
+			}
+			arg.WriteRune(r)
 		case isBackslash:
 			arg.WriteRune(r)
 			inArg = true
@@ -107,7 +113,7 @@ func splitArgs(input string) ([]string, error) {
 		case r == '\'' && !isDoubleQuotes:
 			isSingleQuotes = !isSingleQuotes
 			inArg = true
-		case r == '"' && !isSingleQuotes:
+		case r == '"':
 			isDoubleQuotes = !isDoubleQuotes
 			inArg = true
 		case r == '\\':
