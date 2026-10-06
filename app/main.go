@@ -97,15 +97,6 @@ func splitArgs(input string) ([]string, error) {
 
 	for _, r := range input {
 		switch {
-		case r == '\\' && isBackslash:
-			arg.WriteRune(r)
-			isBackslash = false
-		case r == '"' && isSingleQuotes:
-			if isBackslash {
-				arg.WriteRune('\\')
-				isBackslash = false
-			}
-			arg.WriteRune(r)
 		case isBackslash:
 			arg.WriteRune(r)
 			inArg = true
@@ -113,10 +104,10 @@ func splitArgs(input string) ([]string, error) {
 		case r == '\'' && !isDoubleQuotes:
 			isSingleQuotes = !isSingleQuotes
 			inArg = true
-		case r == '"':
+		case r == '"' && !isSingleQuotes:
 			isDoubleQuotes = !isDoubleQuotes
 			inArg = true
-		case r == '\\':
+		case r == '\\' && !isSingleQuotes:
 			isBackslash = true
 		case !isSingleQuotes && !isDoubleQuotes && unicode.IsSpace(r):
 			if inArg {
