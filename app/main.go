@@ -12,17 +12,21 @@ import (
 
 type handler func([]string)
 
-var builtins = map[string]handler{
-	"echo": handleEcho,
-	"exit": handleExit,
-	"type": handleType,
-	"pwd":  handlePwd,
-	"cd":   handleCd,
+var builtins map[string]handler
+
+func init() {
+	builtins = map[string]handler{
+		"echo": handleEcho,
+		"exit": handleExit,
+		"type": handleType,
+		"pwd":  handlePwd,
+		"cd":   handleCd,
+	}
 }
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
-
+	
 	for {
 		fmt.Print("$ ")
 		command, err := reader.ReadString('\n')
