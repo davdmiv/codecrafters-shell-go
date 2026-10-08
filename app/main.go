@@ -6,17 +6,22 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"unicode"
 )
 
-// Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
-var _ = fmt.Print
+type handler func([]string)
+
+var builtins = map[string]handler{
+	"echo": handleEcho,
+	"exit": handleExit,
+	"type": handleType,
+	"pwd":  handlePwd,
+	"cd":   handleCd,
+}
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
-	builtins := []string{"echo", "exit", "type", "pwd", "cd"}
 
 	for {
 		fmt.Print("$ ")
@@ -36,46 +41,8 @@ func main() {
 
 		baseCmd := tokens[0]
 
-		var target string
-		if len(tokens) > 1 {
-			target = tokens[1]
-		}
-
-		if baseCmd == "type" {
-			if slices.Contains(builtins, target) {
-				fmt.Println(target + " is a shell builtin")
-			} else if path, err := exec.LookPath(target); err == nil {
-				fmt.Printf("%s is %s\n", target, path)
-			} else {
-				fmt.Println(target + ": not found")
-			}
-		} else if baseCmd == "exit" {
-			break
-		} else if baseCmd == "echo" {
-			tokens, err = splitArgs(command[5:])
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			fmt.Println(strings.Join(tokens, " "))
-		} else if baseCmd == "pwd" {
-			dir, _ := os.Getwd()
-			fmt.Println(dir)
-		} else if baseCmd == "cd" {
-			if target == "~" {
-				home, err := os.UserHomeDir()
-				if err != nil {
-					fmt.Println(err)
-					return
-				}
-				target = home
-			}
-
-			path := filepath.Clean(target)
-
-			if err := os.Chdir(path); err != nil {
-				fmt.Printf("cd: %s: No such file or directory\n", path)
-			}
+		if _, ok := builtins[baseCmd]; ok {
+			builtins[baseCmd](tokens)
 		} else if _, err := exec.LookPath(baseCmd); err == nil {
 			cmd := exec.Command(baseCmd, tokens[1:]...)
 			cmd.Stdout = os.Stdout
@@ -84,6 +51,56 @@ func main() {
 		} else {
 			fmt.Println(command + ": command not found")
 		}
+	}
+}
+
+func handleExit(args []string) {
+	os.Exit(0)
+}
+
+func handleEcho(args []string) {
+	fmt.Println(strings.Join(args[1:], " "))
+}
+
+func handlePwd(args []string) {
+	dir, _ := os.Getwd()
+	fmt.Println(dir)
+}
+
+func handleType(args []string) {
+	var target string
+	if len(args) > 1 {
+		target = args[1]
+	}
+
+	if _, ok := builtins[target]; ok {
+		fmt.Println(target + " is a shell builtin")
+	} else if path, err := exec.LookPath(target); err == nil {
+		fmt.Printf("%s is %s\n", target, path)
+	} else {
+		fmt.Println(target + ": not found")
+	}
+}
+
+func handleCd(args []string) {
+	var target string
+	if len(args) > 1 {
+		target = args[1]
+	}
+
+	if target == "~" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		target = home
+	}
+
+	path := filepath.Clean(target)
+
+	if err := os.Chdir(path); err != nil {
+		fmt.Printf("cd: %s: No such file or directory\n", path)
 	}
 }
 
