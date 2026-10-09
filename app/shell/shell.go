@@ -97,8 +97,8 @@ func (sh *Shell) execute(tokens []string) {
 	}
 
 	// 2. Проверяем внешние команды
-	if path, err := exec.LookPath(baseCmd); err == nil {
-		extCmd := exec.Command(path, args...)
+	if _, err := exec.LookPath(baseCmd); err == nil {
+		extCmd := exec.Command(baseCmd, args...)
 		extCmd.Stdout = ctx.Stdout
 		extCmd.Stderr = ctx.Stderr
 		extCmd.Stdin = ctx.Stdin
