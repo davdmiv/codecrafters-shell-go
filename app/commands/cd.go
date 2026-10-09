@@ -33,7 +33,7 @@ func (e *Cd) Execute(ctx *Context, args []string) error {
 	path := filepath.Clean(target)
 
 	if err := os.Chdir(path); err != nil {
-		return fmt.Errorf("cd: %s: %w\n", path, err)
+		return fmt.Errorf("%s: No such file or directory", path)
 	}
 
 	return nil
