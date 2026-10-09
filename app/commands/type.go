@@ -36,5 +36,5 @@ func (t *Type) Execute(ctx *Context, args []string) error {
 		return nil
 	}
 
-	return fmt.Errorf("type: %s: not found", target)
+	return fmt.Errorf("%s: not found", target)
 }
