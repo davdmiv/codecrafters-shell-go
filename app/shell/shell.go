@@ -106,7 +106,7 @@ func (sh *Shell) execute(tokens []string) {
 		if err := extCmd.Run(); err != nil {
 			// Внешние команды сами печатают свои ошибки в stderr,
 			// но если процесс не запустился, сообщим об этом.
-			fmt.Fprintf(ctx.Stderr, "%s: %v\n", baseCmd, err)
+			fmt.Fprintf(ctx.Stderr, "%v\n", err)
 		}
 		return
 	}
