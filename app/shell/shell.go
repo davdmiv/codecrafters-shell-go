@@ -91,7 +91,7 @@ func (sh *Shell) execute(tokens []string) {
 	// 1. Проверяем встроенные команды
 	if cmd, ok := sh.registry.Get(baseCmd); ok {
 		if err := cmd.Execute(ctx, args); err != nil {
-			fmt.Fprintf(ctx.Stderr, "%s: %v\n", baseCmd, err)
+			fmt.Fprintf(ctx.Stderr, "%v\n", err)
 		}
 		return
 	}
