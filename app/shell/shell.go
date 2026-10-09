@@ -88,29 +88,21 @@ func (sh *Shell) execute(tokens []string) {
 		Stdin:  sh.stdin,
 	}
 
+	var cmd commands.Command
+
 	// 1. Проверяем встроенные команды
-	if cmd, ok := sh.registry.Get(baseCmd); ok {
-		if err := cmd.Execute(ctx, args); err != nil {
-			fmt.Fprintf(ctx.Stderr, "%v\n", err)
+	if builtin, ok := sh.registry.Get(baseCmd); ok {
+		cmd = builtin
+	} else {
+		if _, err := exec.LookPath(baseCmd); err == nil {
+			cmd = commands.NewExternal(baseCmd)
+		} else {
+			fmt.Fprintf(ctx.Stderr, "%s: command not found\n", baseCmd)
+			return
 		}
-		return
 	}
 
-	// 2. Проверяем внешние команды
-	if _, err := exec.LookPath(baseCmd); err == nil {
-		extCmd := exec.Command(baseCmd, args...)
-		extCmd.Stdout = ctx.Stdout
-		extCmd.Stderr = ctx.Stderr
-		extCmd.Stdin = ctx.Stdin
-
-		if err := extCmd.Run(); err != nil {
-			// Внешние команды сами печатают свои ошибки в stderr,
-			// но если процесс не запустился, сообщим об этом.
-			fmt.Fprintf(ctx.Stderr, "%v\n", err)
-		}
-		return
+	if err := cmd.Execute(ctx, args); err != nil {
+		fmt.Fprintf(ctx.Stderr, "%v\n", err)
 	}
-
-	// 3. Команда не найдена
-	fmt.Fprintf(ctx.Stderr, "%s: command not found\n", baseCmd)
 }
