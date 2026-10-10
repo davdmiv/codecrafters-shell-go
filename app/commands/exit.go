@@ -5,8 +5,6 @@ import (
 	"strconv"
 )
 
-// ExitError сигнализирует шеллу, что нужно завершить REPL с данным кодом.
-// Сама команда exit не вызывает os.Exit — это делает main/shell.
 type ExitError struct {
 	Code int
 }

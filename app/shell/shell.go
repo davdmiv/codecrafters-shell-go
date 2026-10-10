@@ -12,15 +12,13 @@ import (
 	"github.com/codecrafters-io/shell-starter-go/app/parser"
 )
 
-// Shell инкапсулирует состояние и логику работы оболочки.
 type Shell struct {
 	stdout   io.Writer
 	stderr   io.Writer
 	stdin    io.Reader
-	registry *commands.Registry // Реестр команд из прошлого примера
+	registry *commands.Registry 
 }
 
-// New - конструктор шелла.
 func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 	sh := &Shell{
 		stdout:   stdout,
@@ -29,7 +27,6 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 		registry: commands.NewRegistry(),
 	}
 
-	// Регистрируем встроенные команды (используем реализации из echo.go, cd.go и т.д.)
 	sh.registry.Register(commands.NewEcho())
 	sh.registry.Register(commands.NewExit())
 	sh.registry.Register(commands.NewPwd())
@@ -39,17 +36,14 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 	return sh
 }
 
-// Run запускает бесконечный цикл REPL и возвращает код выхода процесса.
 func (sh *Shell) Run() int {
 	reader := bufio.NewReader(sh.stdin)
 
 	for {
-		// Используем Fprint, чтобы писать в наш io.Writer, а не жестко в os.Stdout
 		fmt.Fprint(sh.stdout, "$ ")
 
 		command, err := reader.ReadString('\n')
 		if err != nil {
-			// Обработка EOF (например, Ctrl+D)
 			if err == io.EOF {
 				fmt.Fprintln(sh.stdout, "\nexit")
 				return 0
@@ -78,12 +72,10 @@ func (sh *Shell) Run() int {
 	}
 }
 
-// execute запускает команду. ok=true означает, что шелл должен завершиться.
 func (sh *Shell) execute(tokens []string) (code int, ok bool) {
 	baseCmd := tokens[0]
 	args := tokens[1:]
 
-	// Создаем контекст выполнения для текущей команды
 	ctx := &commands.Context{
 		Stdout: sh.stdout,
 		Stderr: sh.stderr,
@@ -92,7 +84,6 @@ func (sh *Shell) execute(tokens []string) (code int, ok bool) {
 
 	var cmd commands.Command
 
-	// 1. Проверяем встроенные команды
 	if builtin, found := sh.registry.Get(baseCmd); found {
 		cmd = builtin
 	} else {
@@ -109,7 +100,7 @@ func (sh *Shell) execute(tokens []string) (code int, ok bool) {
 		if errors.As(err, &exitErr) {
 			return exitErr.Code, true
 		}
-		// Ненулевой код внешней команды — не ошибка запуска, в stderr не печатаем.
+
 		var statusErr *commands.StatusError
 		if errors.As(err, &statusErr) {
 			return 0, false
