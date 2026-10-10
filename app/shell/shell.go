@@ -109,6 +109,11 @@ func (sh *Shell) execute(tokens []string) (code int, ok bool) {
 		if errors.As(err, &exitErr) {
 			return exitErr.Code, true
 		}
+		// Ненулевой код внешней команды — не ошибка запуска, в stderr не печатаем.
+		var statusErr *commands.StatusError
+		if errors.As(err, &statusErr) {
+			return 0, false
+		}
 		fmt.Fprintf(ctx.Stderr, "%v\n", err)
 	}
 	return 0, false

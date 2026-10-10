@@ -157,3 +157,21 @@ func TestRun_ExternalCommand(t *testing.T) {
 		t.Errorf("stderr = %q, want empty", stderr)
 	}
 }
+
+func TestRun_ExternalNonZeroExitIsSilent(t *testing.T) {
+	if _, err := exec.LookPath("false"); err != nil {
+		t.Skip("false not found in PATH")
+	}
+
+	stdout, stderr, code := runShell("false\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty (non-zero exit is not a launch failure)", stderr)
+	}
+}

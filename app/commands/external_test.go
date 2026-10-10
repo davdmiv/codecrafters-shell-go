@@ -85,15 +85,18 @@ func TestExternal_Execute_NonZeroExit(t *testing.T) {
 
 	err := NewExternal(falsePath).Execute(ctx, nil)
 	if err == nil {
-		t.Fatal("Execute: want error for non-zero exit, got nil")
+		t.Fatal("Execute: want StatusError for non-zero exit, got nil")
 	}
 
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("Execute: want wrapped ExitError, got %T: %v", err, err)
+	var statusErr *StatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("Execute: want StatusError, got %T: %v", err, err)
 	}
-	if !strings.Contains(err.Error(), "failed to execute") {
-		t.Errorf("error = %q, want substring %q", err.Error(), "failed to execute")
+	if statusErr.Code == 0 {
+		t.Errorf("StatusError.Code = 0, want non-zero")
+	}
+	if got := errBuf.String(); got != "" {
+		t.Errorf("stderr = %q, want empty", got)
 	}
 }
 
