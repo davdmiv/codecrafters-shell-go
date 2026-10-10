@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type Cd struct{}
@@ -12,22 +13,26 @@ func NewCd() *Cd {
 	return &Cd{}
 }
 
-func (e *Cd) Name() string {
+func (c *Cd) Name() string {
 	return "cd"
 }
 
-func (e *Cd) Execute(ctx *Context, args []string) error {
+func (c *Cd) Execute(ctx *Context, args []string) error {
 	var target string
 	if len(args) > 0 {
 		target = args[0]
 	}
 
-	if target == "~" || target == "" {
+	if target == "" || target == "~" || strings.HasPrefix(target, "~/") {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return fmt.Errorf("could not find home directory: %w", err)
 		}
-		target = home
+		if target == "" || target == "~" {
+			target = home
+		} else {
+			target = filepath.Join(home, target[2:])
+		}
 	}
 
 	path := filepath.Clean(target)

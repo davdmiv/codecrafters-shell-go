@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -38,8 +39,8 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 	return sh
 }
 
-// Run запускает бесконечный цикл REPL (Read-Eval-Print Loop).
-func (sh *Shell) Run() {
+// Run запускает бесконечный цикл REPL и возвращает код выхода процесса.
+func (sh *Shell) Run() int {
 	reader := bufio.NewReader(sh.stdin)
 
 	for {
@@ -51,7 +52,7 @@ func (sh *Shell) Run() {
 			// Обработка EOF (например, Ctrl+D)
 			if err == io.EOF {
 				fmt.Fprintln(sh.stdout, "\nexit")
-				return
+				return 0
 			}
 			fmt.Fprintf(sh.stderr, "Error while reading: %v\n", err)
 			continue
@@ -71,13 +72,14 @@ func (sh *Shell) Run() {
 			continue
 		}
 
-		// Запускаем выполнение команды
-		sh.execute(tokens)
+		if code, ok := sh.execute(tokens); ok {
+			return code
+		}
 	}
 }
 
-// execute определяет, как запустить команду (встроенная, внешняя или не найдена).
-func (sh *Shell) execute(tokens []string) {
+// execute запускает команду. ok=true означает, что шелл должен завершиться.
+func (sh *Shell) execute(tokens []string) (code int, ok bool) {
 	baseCmd := tokens[0]
 	args := tokens[1:]
 
@@ -91,18 +93,23 @@ func (sh *Shell) execute(tokens []string) {
 	var cmd commands.Command
 
 	// 1. Проверяем встроенные команды
-	if builtin, ok := sh.registry.Get(baseCmd); ok {
+	if builtin, found := sh.registry.Get(baseCmd); found {
 		cmd = builtin
 	} else {
 		if _, err := exec.LookPath(baseCmd); err == nil {
 			cmd = commands.NewExternal(baseCmd)
 		} else {
 			fmt.Fprintf(ctx.Stderr, "%s: command not found\n", baseCmd)
-			return
+			return 0, false
 		}
 	}
 
 	if err := cmd.Execute(ctx, args); err != nil {
+		var exitErr *commands.ExitError
+		if errors.As(err, &exitErr) {
+			return exitErr.Code, true
+		}
 		fmt.Fprintf(ctx.Stderr, "%v\n", err)
 	}
+	return 0, false
 }

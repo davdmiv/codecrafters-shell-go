@@ -11,12 +11,15 @@ func NewPwd() *Pwd {
 	return &Pwd{}
 }
 
-func (e *Pwd) Name() string {
+func (p *Pwd) Name() string {
 	return "pwd"
 }
 
-func (e *Pwd) Execute(ctx *Context, args []string) error {
+func (p *Pwd) Execute(ctx *Context, args []string) error {
 	output, err := os.Getwd()
+	if err != nil {
+		return err
+	}
 	_, err = fmt.Fprintln(ctx.Stdout, output)
 	return err
 }

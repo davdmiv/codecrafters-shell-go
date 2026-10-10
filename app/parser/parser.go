@@ -39,6 +39,18 @@ func SplitArgs(input string) ([]string, error) {
 		}
 	}
 
+	if isBackslash {
+		return nil, errors.New("unterminated escape")
+	}
+
+	if isSingleQuotes {
+		return nil, errors.New("unterminated single quote")
+	}
+
+	if isDoubleQuotes {
+		return nil, errors.New("unterminated double quote")
+	}
+
 	if inArg {
 		args = append(args, arg.String())
 	}
