@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -16,7 +17,7 @@ type Shell struct {
 	stdout   io.Writer
 	stderr   io.Writer
 	stdin    io.Reader
-	registry *commands.Registry 
+	registry *commands.Registry
 }
 
 func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
@@ -57,29 +58,54 @@ func (sh *Shell) Run() int {
 			continue
 		}
 
-		tokens, err := parser.SplitArgs(command)
+		cmd, err := parser.Parse(command)
 		if err != nil {
 			fmt.Fprintf(sh.stderr, "Parse error: %v\n", err)
 			continue
 		}
-		if len(tokens) == 0 {
-			continue
-		}
-
-		if code, ok := sh.execute(tokens); ok {
+		if code, ok := sh.execute(cmd); ok {
 			return code
 		}
 	}
 }
 
-func (sh *Shell) execute(tokens []string) (code int, ok bool) {
-	baseCmd := tokens[0]
-	args := tokens[1:]
+func (sh *Shell) execute(command *parser.Command) (code int, ok bool) {
+	baseCmd := command.Name
+	args := command.Args
 
 	ctx := &commands.Context{
 		Stdout: sh.stdout,
 		Stderr: sh.stderr,
 		Stdin:  sh.stdin,
+	}
+
+	for _, redir := range command.Redirections {
+		switch redir.Type {
+		case parser.TokenRedirectOut:
+			file, err := os.Create(redir.FilePath)
+			if err != nil {
+				fmt.Fprintf(sh.stderr, "Error: %v\n", err)
+				return 0, false
+			}
+			defer file.Close()
+			ctx.Stdout = file
+		case parser.TokenRedirectAppend:
+			file, err := os.OpenFile(redir.FilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				fmt.Fprintf(sh.stderr, "Error: %v\n", err)
+				return 0, false
+			}
+			defer file.Close()
+			ctx.Stdout = file
+		case parser.TokenRedirectIn:
+			file, err := os.Open(redir.FilePath)
+			if err != nil {
+				fmt.Fprintf(sh.stderr, "Error: %v\n", err)
+				return 0, false
+			}
+			defer file.Close()
+			ctx.Stdin = file
+		}
 	}
 
 	var cmd commands.Command

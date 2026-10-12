@@ -2,7 +2,9 @@ package shell
 
 import (
 	"bytes"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -173,5 +175,90 @@ func TestRun_ExternalNonZeroExitIsSilent(t *testing.T) {
 	}
 	if stderr != "" {
 		t.Errorf("stderr = %q, want empty (non-zero exit is not a launch failure)", stderr)
+	}
+}
+
+func TestRun_OutputRedirectionWithoutArguments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "output.txt")
+	if err := os.WriteFile(path, []byte("old contents\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runShell("echo > " + path + "\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(contents), "\n"; got != want {
+		t.Errorf("redirected file = %q, want %q", got, want)
+	}
+}
+
+func TestRun_AppendRedirection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "output.txt")
+	if err := os.WriteFile(path, []byte("first\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runShell("echo second>>" + path + "\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(contents), "first\nsecond\n"; got != want {
+		t.Errorf("redirected file = %q, want %q", got, want)
+	}
+}
+
+func TestRun_InputAndOutputRedirection(t *testing.T) {
+	if _, err := exec.LookPath("cat"); err != nil {
+		t.Skip("cat not found in PATH")
+	}
+
+	dir := t.TempDir()
+	inputPath := filepath.Join(dir, "input.txt")
+	outputPath := filepath.Join(dir, "output.txt")
+	input := []byte("content from redirected stdin\n")
+	if err := os.WriteFile(inputPath, input, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runShell("cat < " + inputPath + " > " + outputPath + "\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+	contents, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(contents), string(input); got != want {
+		t.Errorf("redirected file = %q, want %q", got, want)
 	}
 }
