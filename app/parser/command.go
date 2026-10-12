@@ -4,10 +4,12 @@ package parser
 type TokenType int
 
 const (
-	TokenArg            TokenType = iota // Обычный аргумент
-	TokenRedirectOut                     // >
-	TokenRedirectAppend                  // >>
-	TokenRedirectIn                      // <
+	TokenArg               TokenType = iota // Обычный аргумент
+	TokenRedirectOut                        // >
+	TokenRedirectAppend                     // >>
+	TokenRedirectIn                         // <
+	TokenRedirectErr                        // 2>
+	TokenRedirectAppendErr                  // 2>>
 )
 
 // Token представляет один токен
@@ -16,9 +18,9 @@ type Token struct {
 	Value string
 }
 
-// Redirection описывает перенаправление потока (>, >>, <)
+// Redirection описывает перенаправление потока.
 type Redirection struct {
-	Type     TokenType // TokenRedirectOut, TokenRedirectAppend, TokenRedirectIn
+	Type     TokenType // Тип перенаправления.
 	FilePath string
 }
 

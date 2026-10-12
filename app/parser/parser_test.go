@@ -216,6 +216,26 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
+			name:  "stderr redirection",
+			input: "cmd 2>errors.log",
+			want: &Command{
+				Name: "cmd",
+				Redirections: []Redirection{{
+					Type: TokenRedirectErr, FilePath: "errors.log",
+				}},
+			},
+		},
+		{
+			name:  "append stderr redirection",
+			input: "cmd 2>>errors.log",
+			want: &Command{
+				Name: "cmd",
+				Redirections: []Redirection{{
+					Type: TokenRedirectAppendErr, FilePath: "errors.log",
+				}},
+			},
+		},
+		{
 			name:  "append and input redirections",
 			input: "cat < in.txt >> out.txt",
 			want: &Command{
@@ -245,6 +265,11 @@ func TestParse(t *testing.T) {
 			name:    "missing input redirection file",
 			input:   "cat <",
 			wantErr: "missing file for redirection <",
+		},
+		{
+			name:    "missing stderr redirection file",
+			input:   "cmd 2>",
+			wantErr: "missing file for redirection 2>",
 		},
 	}
 

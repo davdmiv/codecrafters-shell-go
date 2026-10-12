@@ -52,11 +52,23 @@ func tokenize(input string) ([]Token, error) {
 				argPlain = true
 			}
 		case !isSingleQuotes && !isDoubleQuotes && (r == '<' || r == '>'):
-			// A directly adjacent, unquoted `1` is an explicit stdout descriptor,
-			// not a command argument (for example, `echo 1>file`).
-			if r == '>' && inArg && argPlain && arg.String() == "1" {
-				arg.Reset()
-				inArg = false
+			redirectType := TokenRedirectOut
+			// A directly adjacent, unquoted `1` or `2` is an explicit file
+			// descriptor, not a command argument (for example, `echo 2>file`).
+			if r == '>' && inArg && argPlain {
+				switch arg.String() {
+				case "1":
+					redirectType = TokenRedirectOut
+					arg.Reset()
+					inArg = false
+				case "2":
+					redirectType = TokenRedirectErr
+					arg.Reset()
+					inArg = false
+				}
+			}
+			if r == '>' && i+1 < len(inputRunes) && inputRunes[i+1] == '>' && redirectType == TokenRedirectErr {
+				redirectType = TokenRedirectAppendErr
 			}
 			if inArg {
 				tokens = append(tokens, Token{Type: TokenArg, Value: arg.String()})
@@ -69,10 +81,14 @@ func tokenize(input string) ([]Token, error) {
 				tokens = append(tokens, Token{Type: TokenRedirectIn, Value: "<"})
 			case '>':
 				if i+1 < len(inputRunes) && inputRunes[i+1] == '>' {
-					tokens = append(tokens, Token{Type: TokenRedirectAppend, Value: ">>"})
+					if redirectType == TokenRedirectAppendErr {
+						tokens = append(tokens, Token{Type: TokenRedirectAppendErr, Value: "2>>"})
+					} else {
+						tokens = append(tokens, Token{Type: TokenRedirectAppend, Value: ">>"})
+					}
 					i++
 				} else {
-					tokens = append(tokens, Token{Type: TokenRedirectOut, Value: ">"})
+					tokens = append(tokens, Token{Type: redirectType, Value: ">"})
 				}
 			}
 		default:
@@ -129,6 +145,10 @@ func buildCommand(tokens []Token) (*Command, error) {
 			message = "missing file for redirection >>"
 		case TokenRedirectIn:
 			message = "missing file for redirection <"
+		case TokenRedirectErr:
+			message = "missing file for redirection 2>"
+		case TokenRedirectAppendErr:
+			message = "missing file for redirection 2>>"
 		default:
 			return nil, errors.New("unknown token type")
 		}

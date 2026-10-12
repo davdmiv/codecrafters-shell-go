@@ -262,3 +262,32 @@ func TestRun_InputAndOutputRedirection(t *testing.T) {
 		t.Errorf("redirected file = %q, want %q", got, want)
 	}
 }
+
+func TestRun_StderrRedirection(t *testing.T) {
+	if _, err := exec.LookPath("cat"); err != nil {
+		t.Skip("cat not found in PATH")
+	}
+
+	dir := t.TempDir()
+	missingPath := filepath.Join(dir, "missing.txt")
+	errorPath := filepath.Join(dir, "errors.log")
+
+	stdout, stderr, code := runShell("cat " + missingPath + " 2>" + errorPath + "\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty after redirection", stderr)
+	}
+	contents, err := os.ReadFile(errorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contents) == 0 {
+		t.Error("stderr redirection file is empty, want cat's error message")
+	}
+}

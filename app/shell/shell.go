@@ -97,6 +97,22 @@ func (sh *Shell) execute(command *parser.Command) (code int, ok bool) {
 			}
 			defer file.Close()
 			ctx.Stdout = file
+		case parser.TokenRedirectErr:
+			file, err := os.Create(redir.FilePath)
+			if err != nil {
+				fmt.Fprintf(sh.stderr, "Error: %v\n", err)
+				return 0, false
+			}
+			defer file.Close()
+			ctx.Stderr = file
+		case parser.TokenRedirectAppendErr:
+			file, err := os.OpenFile(redir.FilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				fmt.Fprintf(sh.stderr, "Error: %v\n", err)
+				return 0, false
+			}
+			defer file.Close()
+			ctx.Stderr = file
 		case parser.TokenRedirectIn:
 			file, err := os.Open(redir.FilePath)
 			if err != nil {
