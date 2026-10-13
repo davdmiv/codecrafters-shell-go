@@ -41,13 +41,16 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 
 func (sh *Shell) Run() int {
 	reader := bufio.NewReader(sh.stdin)
-	restore := sh.enableRawMode()
-	defer restore()
 
 	for {
+		// raw → readline → restore → execute:
+		// во время команды терминал снова «cooked», иначе \n от процессов
+		// не возвращает курсор в колонку 0 и ломает следующий prompt.
+		restore := sh.enableRawMode()
 		fmt.Fprint(sh.stdout, "$ ")
-
 		command, err := sh.readLine(reader)
+		restore()
+
 		if err != nil {
 			if err == io.EOF {
 				fmt.Fprintln(sh.stdout, "\nexit")
