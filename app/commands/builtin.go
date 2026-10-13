@@ -2,6 +2,7 @@ package commands
 
 import (
 	"io"
+	"sort"
 )
 
 type Context struct {
@@ -37,4 +38,14 @@ func (r *Registry) Register(cmd Command) {
 func (r *Registry) Get(name string) (Command, bool) {
 	cmd, ok := r.commands[name]
 	return cmd, ok
+}
+
+// Names возвращает отсортированные имена зарегистрированных встроенных команд.
+func (r *Registry) Names() []string {
+	names := make([]string, 0, len(r.commands))
+	for name := range r.commands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }

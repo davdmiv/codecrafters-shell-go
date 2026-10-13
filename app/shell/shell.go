@@ -14,10 +14,12 @@ import (
 )
 
 type Shell struct {
-	stdout   io.Writer
-	stderr   io.Writer
-	stdin    io.Reader
-	registry *commands.Registry
+	stdout      io.Writer
+	stderr      io.Writer
+	stdin       io.Reader
+	registry    *commands.Registry
+	interactive bool // raw TTY: echo keystrokes ourselves
+	tabPending  bool // first Tab on ambiguous match already rang the bell
 }
 
 func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
@@ -39,11 +41,13 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 
 func (sh *Shell) Run() int {
 	reader := bufio.NewReader(sh.stdin)
+	restore := sh.enableRawMode()
+	defer restore()
 
 	for {
 		fmt.Fprint(sh.stdout, "$ ")
 
-		command, err := reader.ReadString('\n')
+		command, err := sh.readLine(reader)
 		if err != nil {
 			if err == io.EOF {
 				fmt.Fprintln(sh.stdout, "\nexit")

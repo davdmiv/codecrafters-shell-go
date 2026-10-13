@@ -263,6 +263,70 @@ func TestRun_InputAndOutputRedirection(t *testing.T) {
 	}
 }
 
+func TestRun_TabCompletesUniqueBuiltin(t *testing.T) {
+	// Non-TTY: typed chars are not echoed; Tab writes only the completion suffix.
+	stdout, stderr, code := runShell("ech\t\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// suffix "o " then echo with no args prints "\n"
+	if got, want := stdout, "$ o \n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_TabNoMatchRingsBell(t *testing.T) {
+	stdout, stderr, code := runShell("zzznomatch\t\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "\a") {
+		t.Errorf("stdout = %q, want BEL (\\a) on missing completion", stdout)
+	}
+	if !strings.Contains(stderr, "zzznomatch: command not found") {
+		t.Errorf("stderr = %q, want command not found", stderr)
+	}
+}
+
+func TestRun_TabListsAmbiguousMatchesOnSecondPress(t *testing.T) {
+	t.Setenv("PATH", "")
+
+	stdout, stderr, code := runShell("e\t\t\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "\a") {
+		t.Errorf("stdout = %q, want BEL on first ambiguous Tab", stdout)
+	}
+	if !strings.Contains(stdout, "echo") || !strings.Contains(stdout, "exit") {
+		t.Errorf("stdout = %q, want listed builtins echo/exit on second Tab", stdout)
+	}
+	if stderr != "" && !strings.Contains(stderr, "command not found") {
+		// After listing, Enter runs incomplete "e" → command not found is ok.
+		t.Errorf("stderr = %q", stderr)
+	}
+}
+
+func TestRun_EOFExecutesPartialLine(t *testing.T) {
+	stdout, stderr, code := runShell("exit 7")
+
+	if code != 7 {
+		t.Errorf("exit code = %d, want 7", code)
+	}
+	if got, want := stdout, "$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
 func TestRun_StderrRedirection(t *testing.T) {
 	if _, err := exec.LookPath("cat"); err != nil {
 		t.Skip("cat not found in PATH")
