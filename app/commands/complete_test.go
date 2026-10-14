@@ -65,7 +65,7 @@ func TestComplete_PrintSpec(t *testing.T) {
 	if err := cmd.Execute(ctx, []string{"-p", "git"}); err != nil {
 		t.Fatalf("Execute -p: %v", err)
 	}
-	if got, want := out.String(), "complete -C /tmp/completer git\n"; got != want {
+	if got, want := out.String(), "complete -C '/tmp/completer' git\n"; got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}
 
@@ -92,7 +92,7 @@ func TestComplete_PrintAllSpecs(t *testing.T) {
 	if err := cmd.Execute(ctx, []string{"-p"}); err != nil {
 		t.Fatalf("Execute -p: %v", err)
 	}
-	want := "complete -C /tmp/a alpha\ncomplete -C /tmp/b zeta\n"
+	want := "complete -C '/tmp/a' alpha\ncomplete -C '/tmp/b' zeta\n"
 	if got := out.String(); got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}

@@ -48,14 +48,14 @@ func (c *Complete) Execute(ctx *Context, args []string) error {
 
 // printSpecs prints completion specs in bash-compatible form:
 //
-//	complete -C <script> <command>
+//	complete -C '<script>' <command>
 //
 // With no names, prints all registered specs (sorted by command).
 func (c *Complete) printSpecs(ctx *Context, names []string) error {
 	if len(names) == 0 {
 		for _, command := range c.specs.Commands() {
 			script, _ := c.specs.Get(command)
-			fmt.Fprintf(ctx.Stdout, "complete -C %s %s\n", script, command)
+			fmt.Fprintf(ctx.Stdout, "complete -C %s %s\n", quoteCompleteArg(script), command)
 		}
 		return nil
 	}
@@ -65,7 +65,12 @@ func (c *Complete) printSpecs(ctx *Context, names []string) error {
 		if !ok {
 			return fmt.Errorf("complete: %s: no completion specification", command)
 		}
-		fmt.Fprintf(ctx.Stdout, "complete -C %s %s\n", script, command)
+		fmt.Fprintf(ctx.Stdout, "complete -C %s %s\n", quoteCompleteArg(script), command)
 	}
 	return nil
+}
+
+// quoteCompleteArg wraps s in single quotes the way bash `complete -p` does.
+func quoteCompleteArg(s string) string {
+	return "'" + s + "'"
 }
