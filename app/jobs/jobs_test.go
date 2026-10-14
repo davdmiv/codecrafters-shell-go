@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"bytes"
+	"fmt"
 	"os/exec"
 	"testing"
 	"time"
@@ -29,7 +30,7 @@ func TestManager_AddListReap(t *testing.T) {
 	if !m.NotifyFinished(&buf) {
 		t.Fatal("expected NotifyFinished to report Done")
 	}
-	want := "[1]+ Done sleep 0.2 &\n"
+	want := fmt.Sprintf("[1]+  %-21s%s\n", "Done", "sleep 0.2")
 	if got := buf.String(); got != want {
 		t.Fatalf("NotifyFinished = %q, want %q", got, want)
 	}
@@ -89,8 +90,14 @@ func TestManager_JobsBuiltinRemovesDone(t *testing.T) {
 
 func TestFormatListing(t *testing.T) {
 	got := FormatListing(Listing{ID: 1, Marker: "+", Status: "Running", CmdLine: "sleep 1 &"})
-	want := "[1]+ Running sleep 1 &"
+	want := "[1]+  Running              sleep 1 &"
 	if got != want {
-		t.Fatalf("FormatListing = %q, want %q", got, want)
+		t.Fatalf("FormatListing Running = %q, want %q", got, want)
+	}
+
+	got = FormatListing(Listing{ID: 1, Marker: "+", Status: "Done", CmdLine: "cat /tmp/pear-94 &"})
+	want = "[1]+  Done                 cat /tmp/pear-94"
+	if got != want {
+		t.Fatalf("FormatListing Done = %q, want %q", got, want)
 	}
 }

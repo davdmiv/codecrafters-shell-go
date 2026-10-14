@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -125,9 +126,20 @@ func (m *Manager) markerLocked(id int) string {
 	}
 }
 
-// FormatListing formats a jobs(1)-style line.
+// FormatListing formats a jobs(1)-style line matching bash:
+//
+//	[1]+  Running                 sleep 10 &
+//	[1]+  Done                    cat /tmp/x
+//
+// Finished entries do not keep a trailing " &".
 func FormatListing(l Listing) string {
-	return fmt.Sprintf("[%d]%s %s %s", l.ID, l.Marker, l.Status, l.CmdLine)
+	cmdline := l.CmdLine
+	if l.Status == "Done" {
+		cmdline = strings.TrimSuffix(cmdline, " &")
+		cmdline = strings.TrimSuffix(cmdline, "&")
+	}
+	// Two spaces after the marker, status left-padded to width 21 (bash 3.2/CodeCrafters).
+	return fmt.Sprintf("[%d]%s  %-21s%s", l.ID, l.Marker, l.Status, cmdline)
 }
 
 // NotifyFinished writes Done notifications for finished jobs to w and removes them.

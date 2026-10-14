@@ -40,8 +40,8 @@ func TestRun_BackgroundJobStartAndDone(t *testing.T) {
 	if !regexp.MustCompile(`\[1\] \d+`).MatchString(stdout) {
 		t.Errorf("stdout = %q, want job start [1] <pid>", stdout)
 	}
-	if !strings.Contains(stderr, "[1]+ Done true &") {
-		t.Errorf("stderr = %q, want Done notification before prompt", stderr)
+	if !strings.Contains(stderr, "Done") || !strings.Contains(stderr, "true") || strings.Contains(stderr, "true &") {
+		t.Errorf("stderr = %q, want Done notification without trailing &", stderr)
 	}
 }
 
@@ -71,8 +71,8 @@ func TestRun_BackgroundJobRunningListed(t *testing.T) {
 	if !regexp.MustCompile(`\[1\] \d+`).MatchString(stdout) {
 		t.Errorf("stdout = %q, want [1] <pid>", stdout)
 	}
-	if !strings.Contains(stdout, "Running cat "+fifo+" &") {
-		t.Errorf("stdout = %q, want Running listing", stdout)
+	if !strings.Contains(stdout, "Running") || !strings.Contains(stdout, "cat "+fifo+" &") {
+		t.Errorf("stdout = %q, want Running listing with trailing &", stdout)
 	}
 	_ = stderr
 }
