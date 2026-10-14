@@ -3,6 +3,7 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 )
 
@@ -43,4 +44,25 @@ func (e *External) Execute(ctx *Context, args []string) error {
 	}
 
 	return nil
+}
+
+// StartExternal starts an external command without waiting for it.
+// When background is true, stdin is connected to /dev/null.
+func StartExternal(name string, args []string, ctx *Context, background bool) (*exec.Cmd, error) {
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = ctx.Stdout
+	cmd.Stderr = ctx.Stderr
+	if background {
+		devNull, err := os.Open(os.DevNull)
+		if err != nil {
+			return nil, err
+		}
+		cmd.Stdin = devNull
+	} else {
+		cmd.Stdin = ctx.Stdin
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to execute %s: %w", name, err)
+	}
+	return cmd, nil
 }

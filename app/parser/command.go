@@ -29,4 +29,5 @@ type Command struct {
 	Name         string        // Имя команды (например, "echo")
 	Args         []string      // Аргументы (например, ["hello"])
 	Redirections []Redirection // Перенаправления (если есть)
+	Background   bool          // команда завершается на &
 }

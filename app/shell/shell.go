@@ -11,6 +11,7 @@ import (
 
 	"github.com/codecrafters-io/shell-starter-go/app/commands"
 	"github.com/codecrafters-io/shell-starter-go/app/completion"
+	"github.com/codecrafters-io/shell-starter-go/app/jobs"
 	"github.com/codecrafters-io/shell-starter-go/app/parser"
 )
 
@@ -20,18 +21,21 @@ type Shell struct {
 	stdin       io.Reader
 	registry    *commands.Registry
 	specs       *completion.Specs
+	jobs        *jobs.Manager
 	interactive bool // raw TTY: echo keystrokes ourselves
 	tabPending  bool // first Tab on ambiguous match already rang the bell
 }
 
 func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 	specs := completion.NewSpecs()
+	jobMgr := jobs.NewManager()
 	sh := &Shell{
-		stdout:   stdout,
-		stderr:   stderr,
+		stdout:   newSyncWriter(stdout),
+		stderr:   newSyncWriter(stderr),
 		stdin:    stdin,
 		registry: commands.NewRegistry(),
 		specs:    specs,
+		jobs:     jobMgr,
 	}
 
 	sh.registry.Register(commands.NewEcho())
@@ -40,6 +44,7 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 	sh.registry.Register(commands.NewCd())
 	sh.registry.Register(commands.NewType(sh.registry))
 	sh.registry.Register(commands.NewComplete(specs))
+	sh.registry.Register(commands.NewJobs(jobMgr))
 
 	return sh
 }
@@ -48,6 +53,9 @@ func (sh *Shell) Run() int {
 	reader := bufio.NewReader(sh.stdin)
 
 	for {
+		// Notify about finished background jobs before the next prompt.
+		sh.jobs.NotifyFinished(sh.stderr)
+
 		// raw → readline → restore → execute:
 		// во время команды терминал снова «cooked», иначе \n от процессов
 		// не возвращает курсор в колонку 0 и ломает следующий prompt.
@@ -75,13 +83,13 @@ func (sh *Shell) Run() int {
 			fmt.Fprintf(sh.stderr, "Parse error: %v\n", err)
 			continue
 		}
-		if code, ok := sh.execute(cmd); ok {
+		if code, ok := sh.execute(cmd, command); ok {
 			return code
 		}
 	}
 }
 
-func (sh *Shell) execute(command *parser.Command) (code int, ok bool) {
+func (sh *Shell) execute(command *parser.Command, rawLine string) (code int, ok bool) {
 	baseCmd := command.Name
 	args := command.Args
 
@@ -91,6 +99,13 @@ func (sh *Shell) execute(command *parser.Command) (code int, ok bool) {
 		Stdin:  sh.stdin,
 	}
 
+	opened := make([]io.Closer, 0, len(command.Redirections))
+	defer func() {
+		for _, c := range opened {
+			_ = c.Close()
+		}
+	}()
+
 	for _, redir := range command.Redirections {
 		switch redir.Type {
 		case parser.TokenRedirectOut:
@@ -99,7 +114,7 @@ func (sh *Shell) execute(command *parser.Command) (code int, ok bool) {
 				fmt.Fprintf(sh.stderr, "Error: %v\n", err)
 				return 0, false
 			}
-			defer file.Close()
+			opened = append(opened, file)
 			ctx.Stdout = file
 		case parser.TokenRedirectAppend:
 			file, err := os.OpenFile(redir.FilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -107,7 +122,7 @@ func (sh *Shell) execute(command *parser.Command) (code int, ok bool) {
 				fmt.Fprintf(sh.stderr, "Error: %v\n", err)
 				return 0, false
 			}
-			defer file.Close()
+			opened = append(opened, file)
 			ctx.Stdout = file
 		case parser.TokenRedirectErr:
 			file, err := os.Create(redir.FilePath)
@@ -115,7 +130,7 @@ func (sh *Shell) execute(command *parser.Command) (code int, ok bool) {
 				fmt.Fprintf(sh.stderr, "Error: %v\n", err)
 				return 0, false
 			}
-			defer file.Close()
+			opened = append(opened, file)
 			ctx.Stderr = file
 		case parser.TokenRedirectAppendErr:
 			file, err := os.OpenFile(redir.FilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -123,7 +138,7 @@ func (sh *Shell) execute(command *parser.Command) (code int, ok bool) {
 				fmt.Fprintf(sh.stderr, "Error: %v\n", err)
 				return 0, false
 			}
-			defer file.Close()
+			opened = append(opened, file)
 			ctx.Stderr = file
 		case parser.TokenRedirectIn:
 			file, err := os.Open(redir.FilePath)
@@ -131,9 +146,13 @@ func (sh *Shell) execute(command *parser.Command) (code int, ok bool) {
 				fmt.Fprintf(sh.stderr, "Error: %v\n", err)
 				return 0, false
 			}
-			defer file.Close()
+			opened = append(opened, file)
 			ctx.Stdin = file
 		}
+	}
+
+	if command.Background {
+		return sh.executeBackground(baseCmd, args, ctx, rawLine)
 	}
 
 	var cmd commands.Command
@@ -161,5 +180,27 @@ func (sh *Shell) execute(command *parser.Command) (code int, ok bool) {
 		}
 		fmt.Fprintf(ctx.Stderr, "%v\n", err)
 	}
+	return 0, false
+}
+
+func (sh *Shell) executeBackground(baseCmd string, args []string, ctx *commands.Context, rawLine string) (code int, ok bool) {
+	// Builtins in the background are not supported; run only external programs.
+	if _, isBuiltin := sh.registry.Get(baseCmd); isBuiltin {
+		fmt.Fprintf(ctx.Stderr, "%s: background jobs for builtins are not supported\n", baseCmd)
+		return 0, false
+	}
+	if _, err := exec.LookPath(baseCmd); err != nil {
+		fmt.Fprintf(ctx.Stderr, "%s: command not found\n", baseCmd)
+		return 0, false
+	}
+
+	proc, err := commands.StartExternal(baseCmd, args, ctx, true)
+	if err != nil {
+		fmt.Fprintf(ctx.Stderr, "%v\n", err)
+		return 0, false
+	}
+
+	job := sh.jobs.Add(proc, rawLine)
+	fmt.Fprintf(sh.stdout, "[%d] %d\n", job.ID, job.PID)
 	return 0, false
 }

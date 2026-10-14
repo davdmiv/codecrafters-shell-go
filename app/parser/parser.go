@@ -125,8 +125,18 @@ func buildCommand(tokens []Token) (*Command, error) {
 		return nil, errors.New("command name must come before redirections")
 	}
 
+	if len(tokens) == 1 && tokens[0].Type == TokenArg && tokens[0].Value == "&" {
+		return nil, errors.New("empty command")
+	}
+
 	cmd := &Command{
 		Name: tokens[0].Value,
+	}
+
+	// Trailing `&` starts a background job (bash-style).
+	if n := len(tokens); n >= 2 && tokens[n-1].Type == TokenArg && tokens[n-1].Value == "&" {
+		cmd.Background = true
+		tokens = tokens[:n-1]
 	}
 
 	for i := 1; i < len(tokens); i++ {

@@ -163,6 +163,21 @@ func TestParse(t *testing.T) {
 			want:  &Command{Name: "pwd"},
 		},
 		{
+			name:  "background command",
+			input: "sleep 10 &",
+			want:  &Command{Name: "sleep", Args: []string{"10"}, Background: true},
+		},
+		{
+			name:  "background without args",
+			input: "true &",
+			want:  &Command{Name: "true", Background: true},
+		},
+		{
+			name:    "background only ampersand",
+			input:   "&",
+			wantErr: "empty command",
+		},
+		{
 			name:  "output redirection",
 			input: "echo hello > out.txt",
 			want: &Command{

@@ -5,8 +5,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func runShell(input string) (stdout, stderr string, code int) {
@@ -14,6 +17,64 @@ func runShell(input string) (stdout, stderr string, code int) {
 	var errBuf bytes.Buffer
 	code = New(&out, &errBuf, strings.NewReader(input)).Run()
 	return out.String(), errBuf.String(), code
+}
+
+func TestRun_JobsBuiltinEmpty(t *testing.T) {
+	stdout, stderr, code := runShell("jobs\nexit\n")
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_BackgroundJobStartAndDone(t *testing.T) {
+	stdout, stderr, code := runShell("true &\nsleep 0.1\nexit\n")
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if !regexp.MustCompile(`\[1\] \d+`).MatchString(stdout) {
+		t.Errorf("stdout = %q, want job start [1] <pid>", stdout)
+	}
+	if !strings.Contains(stderr, "[1]+ Done true &") {
+		t.Errorf("stderr = %q, want Done notification before prompt", stderr)
+	}
+}
+
+func TestRun_BackgroundJobRunningListed(t *testing.T) {
+	dir := t.TempDir()
+	fifo := filepath.Join(dir, "fifo")
+	if err := syscall.Mkfifo(fifo, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	unblocked := make(chan struct{})
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		w, err := os.OpenFile(fifo, os.O_WRONLY, 0)
+		if err == nil {
+			_ = w.Close()
+		}
+		close(unblocked)
+	}()
+
+	stdout, stderr, code := runShell("cat " + fifo + " &\njobs\nexit\n")
+	<-unblocked
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if !regexp.MustCompile(`\[1\] \d+`).MatchString(stdout) {
+		t.Errorf("stdout = %q, want [1] <pid>", stdout)
+	}
+	if !strings.Contains(stdout, "Running cat "+fifo+" &") {
+		t.Errorf("stdout = %q, want Running listing", stdout)
+	}
+	_ = stderr
 }
 
 func TestRun_EchoAndExit(t *testing.T) {
