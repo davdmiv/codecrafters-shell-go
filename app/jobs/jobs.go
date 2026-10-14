@@ -126,10 +126,10 @@ func (m *Manager) markerLocked(id int) string {
 	}
 }
 
-// FormatListing formats a jobs(1)-style line matching bash:
+// FormatListing formats a jobs(1)-style line matching bash/CodeCrafters:
 //
 //	[1]+  Running                 sleep 10 &
-//	[1]+  Done                    cat /tmp/x
+//	[1]+  Done                 cat /tmp/x
 //
 // Finished entries do not keep a trailing " &".
 func FormatListing(l Listing) string {
@@ -138,8 +138,8 @@ func FormatListing(l Listing) string {
 		cmdline = strings.TrimSuffix(cmdline, " &")
 		cmdline = strings.TrimSuffix(cmdline, "&")
 	}
-	// Two spaces after the marker, status left-padded to width 21 (bash 3.2/CodeCrafters).
-	return fmt.Sprintf("[%d]%s  %-21s%s", l.ID, l.Marker, l.Status, cmdline)
+	// Two spaces after the marker, then status, then exactly 17 spaces before the command.
+	return fmt.Sprintf("[%d]%s  %s%s%s", l.ID, l.Marker, l.Status, strings.Repeat(" ", 17), cmdline)
 }
 
 // NotifyFinished writes Done notifications for finished jobs to w and removes them.
@@ -186,17 +186,25 @@ func (m *Manager) RemoveFinished() {
 func (m *Manager) removeLocked(id int) {
 	delete(m.byID, id)
 	if m.current == id {
-		m.current = m.previous
-		m.previous = 0
-		// Prefer highest remaining ID as current if previous was empty.
-		if m.current == 0 {
-			for other := range m.byID {
-				if other > m.current {
-					m.current = other
-				}
-			}
-		}
-	} else if m.previous == id {
-		m.previous = 0
+		// Drop "+" without promoting "-". Remaining previous job keeps "-".
+		m.current = 0
 	}
+	if m.previous == id {
+		// Elect a new previous among remaining non-current jobs.
+		m.previous = m.electPreviousLocked()
+	}
+}
+
+// electPreviousLocked returns the highest remaining job ID that is not current.
+func (m *Manager) electPreviousLocked() int {
+	best := 0
+	for id := range m.byID {
+		if id == m.current {
+			continue
+		}
+		if id > best {
+			best = id
+		}
+	}
+	return best
 }

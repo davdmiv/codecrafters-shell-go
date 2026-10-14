@@ -2,7 +2,6 @@ package jobs
 
 import (
 	"bytes"
-	"fmt"
 	"os/exec"
 	"testing"
 	"time"
@@ -30,7 +29,7 @@ func TestManager_AddListReap(t *testing.T) {
 	if !m.NotifyFinished(&buf) {
 		t.Fatal("expected NotifyFinished to report Done")
 	}
-	want := fmt.Sprintf("[1]+  %-21s%s\n", "Done", "sleep 0.2")
+	want := "[1]+  Done                 sleep 0.2\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("NotifyFinished = %q, want %q", got, want)
 	}
@@ -42,7 +41,7 @@ func TestManager_AddListReap(t *testing.T) {
 func TestManager_RecycleIDs(t *testing.T) {
 	m := NewManager()
 
-	start := func(arg string) *exec.Cmd {
+	start := func() *exec.Cmd {
 		cmd := exec.Command("true")
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
@@ -50,8 +49,8 @@ func TestManager_RecycleIDs(t *testing.T) {
 		return cmd
 	}
 
-	j1 := m.Add(start("a"), "true &")
-	j2 := m.Add(start("b"), "true &")
+	j1 := m.Add(start(), "true &")
+	j2 := m.Add(start(), "true &")
 	if j1.ID != 1 || j2.ID != 2 {
 		t.Fatalf("ids = %d, %d", j1.ID, j2.ID)
 	}
@@ -59,7 +58,7 @@ func TestManager_RecycleIDs(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	m.NotifyFinished(ioDiscard{})
 
-	j3 := m.Add(start("c"), "true &")
+	j3 := m.Add(start(), "true &")
 	if j3.ID != 1 {
 		t.Fatalf("recycled id = %d, want 1", j3.ID)
 	}
@@ -90,7 +89,7 @@ func TestManager_JobsBuiltinRemovesDone(t *testing.T) {
 
 func TestFormatListing(t *testing.T) {
 	got := FormatListing(Listing{ID: 1, Marker: "+", Status: "Running", CmdLine: "sleep 1 &"})
-	want := "[1]+  Running              sleep 1 &"
+	want := "[1]+  Running                 sleep 1 &"
 	if got != want {
 		t.Fatalf("FormatListing Running = %q, want %q", got, want)
 	}
@@ -100,4 +99,48 @@ func TestFormatListing(t *testing.T) {
 	if got != want {
 		t.Fatalf("FormatListing Done = %q, want %q", got, want)
 	}
+
+	got = FormatListing(Listing{ID: 1, Marker: "-", Status: "Running", CmdLine: "sleep 500 &"})
+	want = "[1]-  Running                 sleep 500 &"
+	if got != want {
+		t.Fatalf("FormatListing previous = %q, want %q", got, want)
+	}
+}
+
+func TestManager_MarkersAfterCurrentRemoved(t *testing.T) {
+	m := NewManager()
+	startSleep := func(line string) *Job {
+		cmd := exec.Command("sleep", "30")
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		return m.Add(cmd, line)
+	}
+
+	j1 := startSleep("sleep 500 &")
+
+	cmd2 := exec.Command("true")
+	if err := cmd2.Start(); err != nil {
+		t.Fatal(err)
+	}
+	_ = m.Add(cmd2, "cat /tmp/grape &")
+	time.Sleep(50 * time.Millisecond)
+
+	j3 := startSleep("cat /tmp/blueberry &")
+
+	// jobs reports Done for middle job → previous becomes j1; then current j3 exits.
+	m.RemoveFinished()
+	m.mu.Lock()
+	m.removeLocked(j3.ID)
+	m.mu.Unlock()
+
+	list := m.List()
+	if len(list) != 1 || list[0].ID != j1.ID || list[0].Marker != "-" {
+		t.Fatalf("List() = %+v, want job %d with marker -", list, j1.ID)
+	}
+
+	_ = j1.cmd.Process.Kill()
+	_ = j3.cmd.Process.Kill()
+	<-j1.done
+	<-j3.done
 }
