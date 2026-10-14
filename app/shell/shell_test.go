@@ -279,6 +279,48 @@ func TestRun_TabCompletesUniqueBuiltin(t *testing.T) {
 	}
 }
 
+func TestRun_TabCompletesFilename(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.WriteFile("hello.txt", []byte("x\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runShell("echo hel\t\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// suffix "lo.txt " then echo prints "hello.txt\n"
+	if got, want := stdout, "$ lo.txt hello.txt\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_TabCompletesDirectoryWithSlash(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.Mkdir("docs", 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runShell("echo do\t\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	// directory match ends with "/" and no trailing space
+	if got, want := stdout, "$ cs/docs/\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
 func TestRun_TabNoMatchRingsBell(t *testing.T) {
 	stdout, stderr, code := runShell("zzznomatch\t\nexit\n")
 

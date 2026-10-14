@@ -95,7 +95,7 @@ func (sh *Shell) handleTab(line []byte) []byte {
 	lineStr := string(line)
 	cursor := len(lineStr)
 
-	word, start, ok := completion.CommandWord(lineStr, cursor)
+	token, start, ok := completion.TokenAtCursor(lineStr, cursor)
 	if !ok {
 		fmt.Fprint(sh.stdout, "\a")
 		sh.tabPending = false
@@ -109,16 +109,20 @@ func (sh *Shell) handleTab(line []byte) []byte {
 		sh.tabPending = false
 		return line
 	case 1:
-		completed := matches[0] + " "
-		suffix := completed[len(word):]
+		// Директории уже с "/"; для файлов и команд добавляем пробел.
+		completed := matches[0]
+		if !strings.HasSuffix(completed, "/") {
+			completed += " "
+		}
+		suffix := completed[len(token):]
 		newLine := lineStr[:start] + completed
 		fmt.Fprint(sh.stdout, suffix)
 		sh.tabPending = false
 		return []byte(newLine)
 	default:
 		lcp := completion.CommonPrefix(matches)
-		if len(lcp) > len(word) {
-			suffix := lcp[len(word):]
+		if len(lcp) > len(token) {
+			suffix := lcp[len(token):]
 			newLine := lineStr[:start] + lcp
 			fmt.Fprint(sh.stdout, suffix)
 			sh.tabPending = false

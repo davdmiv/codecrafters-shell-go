@@ -1,4 +1,4 @@
-// Package completion provides command-name completion for the shell.
+// Package completion provides command-name and path completion for the shell.
 package completion
 
 import (
@@ -34,16 +34,40 @@ func CommandWord(line string, cursor int) (word string, start int, ok bool) {
 	return word, start, true
 }
 
-// Complete returns sorted command names that start with the command prefix at
-// cursor. Builtins and executable files found in PATH are both considered.
-// Cursor is a byte offset into line. Completion is limited to the first word;
-// argument and path completion are intentionally left to a separate feature.
+// TokenAtCursor returns the whitespace-delimited token under cursor.
+func TokenAtCursor(line string, cursor int) (token string, start int, ok bool) {
+	if cursor < 0 || cursor > len(line) {
+		return "", 0, false
+	}
+
+	before := line[:cursor]
+	start = 0
+	for i := 0; i < len(before); {
+		r, size := utf8.DecodeRuneInString(before[i:])
+		if unicode.IsSpace(r) {
+			start = i + size
+		}
+		i += size
+	}
+	return before[start:], start, true
+}
+
+// Complete returns sorted completion candidates for the cursor position.
+// The first word is completed as a command (builtins + PATH); later tokens as paths.
+// Directory matches end with "/".
 func Complete(line string, cursor int, builtins []string) []string {
-	word, _, ok := CommandWord(line, cursor)
+	if word, _, ok := CommandWord(line, cursor); ok {
+		return completeCommands(word, builtins)
+	}
+
+	token, _, ok := TokenAtCursor(line, cursor)
 	if !ok {
 		return nil
 	}
+	return CompletePath(token)
+}
 
+func completeCommands(word string, builtins []string) []string {
 	candidates := make(map[string]struct{})
 	for _, name := range builtins {
 		if strings.HasPrefix(name, word) {
@@ -75,6 +99,65 @@ func Complete(line string, cursor int, builtins []string) []string {
 	result := make([]string, 0, len(candidates))
 	for name := range candidates {
 		result = append(result, name)
+	}
+	sort.Strings(result)
+	return result
+}
+
+// CompletePath returns path completions for token. Directories end with "/".
+// Supports relative paths, absolute paths, and "~" / "~/...".
+func CompletePath(token string) []string {
+	if token == "~" {
+		return []string{"~/"}
+	}
+
+	var (
+		displayDir string // prefix kept in the returned candidates
+		readDir    string // directory to list
+		prefix     string
+	)
+
+	switch {
+	case strings.HasPrefix(token, "~/"):
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil
+		}
+		rest := token[2:]
+		subDir, name := filepath.Split(rest)
+		displayDir = "~/" + subDir
+		readDir = filepath.Join(home, subDir)
+		prefix = name
+	default:
+		subDir, name := filepath.Split(token)
+		displayDir = subDir
+		if subDir == "" {
+			readDir = "."
+		} else {
+			readDir = subDir
+		}
+		prefix = name
+	}
+
+	entries, err := os.ReadDir(readDir)
+	if err != nil {
+		return nil
+	}
+
+	var result []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if strings.HasPrefix(name, ".") && !strings.HasPrefix(prefix, ".") {
+			continue
+		}
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		candidate := displayDir + name
+		if entry.IsDir() {
+			candidate += "/"
+		}
+		result = append(result, candidate)
 	}
 	sort.Strings(result)
 	return result
