@@ -128,15 +128,16 @@ func TestManager_MarkersAfterCurrentRemoved(t *testing.T) {
 
 	j3 := startSleep("cat /tmp/blueberry &")
 
-	// jobs reports Done for middle job → previous becomes j1; then current j3 exits.
+	// jobs reports Done for middle job → previous becomes j1; then current j3 exits
+	// and j1 is promoted from "-" to "+".
 	m.RemoveFinished()
 	m.mu.Lock()
 	m.removeLocked(j3.ID)
 	m.mu.Unlock()
 
 	list := m.List()
-	if len(list) != 1 || list[0].ID != j1.ID || list[0].Marker != "-" {
-		t.Fatalf("List() = %+v, want job %d with marker -", list, j1.ID)
+	if len(list) != 1 || list[0].ID != j1.ID || list[0].Marker != "+" {
+		t.Fatalf("List() = %+v, want job %d with marker +", list, j1.ID)
 	}
 
 	_ = j1.cmd.Process.Kill()

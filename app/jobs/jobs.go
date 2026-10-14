@@ -186,11 +186,13 @@ func (m *Manager) RemoveFinished() {
 func (m *Manager) removeLocked(id int) {
 	delete(m.byID, id)
 	if m.current == id {
-		// Drop "+" without promoting "-". Remaining previous job keeps "-".
-		m.current = 0
+		// "+" finished → promote "-" to current, then elect a new previous.
+		m.current = m.previous
+		m.previous = m.electPreviousLocked()
+		return
 	}
 	if m.previous == id {
-		// Elect a new previous among remaining non-current jobs.
+		// "-" finished → elect a new previous among remaining non-current jobs.
 		m.previous = m.electPreviousLocked()
 	}
 }
