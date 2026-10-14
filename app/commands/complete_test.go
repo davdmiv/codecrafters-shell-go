@@ -51,6 +51,53 @@ func TestComplete_UsageErrors(t *testing.T) {
 	}
 }
 
+func TestComplete_PrintSpec(t *testing.T) {
+	specs := completion.NewSpecs()
+	cmd := NewComplete(specs)
+	var out bytes.Buffer
+	ctx := &Context{Stdout: &out, Stderr: ioDiscard{}}
+
+	if err := cmd.Execute(ctx, []string{"-C", "/tmp/completer", "git"}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	out.Reset()
+	if err := cmd.Execute(ctx, []string{"-p", "git"}); err != nil {
+		t.Fatalf("Execute -p: %v", err)
+	}
+	if got, want := out.String(), "complete -C /tmp/completer git\n"; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+
+	out.Reset()
+	err := cmd.Execute(ctx, []string{"-p", "nosuch"})
+	if err == nil {
+		t.Fatal("want error for missing spec")
+	}
+	if got, want := err.Error(), "complete: nosuch: no completion specification"; got != want {
+		t.Fatalf("error = %q, want %q", got, want)
+	}
+}
+
+func TestComplete_PrintAllSpecs(t *testing.T) {
+	specs := completion.NewSpecs()
+	cmd := NewComplete(specs)
+	var out bytes.Buffer
+	ctx := &Context{Stdout: &out, Stderr: ioDiscard{}}
+
+	_ = cmd.Execute(ctx, []string{"-C", "/tmp/b", "zeta"})
+	_ = cmd.Execute(ctx, []string{"-C", "/tmp/a", "alpha"})
+
+	out.Reset()
+	if err := cmd.Execute(ctx, []string{"-p"}); err != nil {
+		t.Fatalf("Execute -p: %v", err)
+	}
+	want := "complete -C /tmp/a alpha\ncomplete -C /tmp/b zeta\n"
+	if got := out.String(); got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+}
+
 func TestType_CompleteIsBuiltin(t *testing.T) {
 	reg := NewRegistry()
 	specs := completion.NewSpecs()

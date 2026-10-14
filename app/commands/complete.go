@@ -21,7 +21,7 @@ func (c *Complete) Name() string {
 
 func (c *Complete) Execute(ctx *Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("complete: usage: complete -C <script> <command> | complete -r <command>")
+		return fmt.Errorf("complete: usage: complete [-C <script> | -r | -p] <command>")
 	}
 
 	switch args[0] {
@@ -39,7 +39,33 @@ func (c *Complete) Execute(ctx *Context, args []string) error {
 		}
 		c.specs.Remove(args[1])
 		return nil
+	case "-p":
+		return c.printSpecs(ctx, args[1:])
 	default:
 		return fmt.Errorf("complete: %s: invalid option", args[0])
 	}
+}
+
+// printSpecs prints completion specs in bash-compatible form:
+//
+//	complete -C <script> <command>
+//
+// With no names, prints all registered specs (sorted by command).
+func (c *Complete) printSpecs(ctx *Context, names []string) error {
+	if len(names) == 0 {
+		for _, command := range c.specs.Commands() {
+			script, _ := c.specs.Get(command)
+			fmt.Fprintf(ctx.Stdout, "complete -C %s %s\n", script, command)
+		}
+		return nil
+	}
+
+	for _, command := range names {
+		script, ok := c.specs.Get(command)
+		if !ok {
+			return fmt.Errorf("complete: %s: no completion specification", command)
+		}
+		fmt.Fprintf(ctx.Stdout, "complete -C %s %s\n", script, command)
+	}
+	return nil
 }
