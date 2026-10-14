@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/codecrafters-io/shell-starter-go/app/commands"
+	"github.com/codecrafters-io/shell-starter-go/app/completion"
 	"github.com/codecrafters-io/shell-starter-go/app/parser"
 )
 
@@ -18,16 +19,19 @@ type Shell struct {
 	stderr      io.Writer
 	stdin       io.Reader
 	registry    *commands.Registry
+	specs       *completion.Specs
 	interactive bool // raw TTY: echo keystrokes ourselves
 	tabPending  bool // first Tab on ambiguous match already rang the bell
 }
 
 func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
+	specs := completion.NewSpecs()
 	sh := &Shell{
 		stdout:   stdout,
 		stderr:   stderr,
 		stdin:    stdin,
 		registry: commands.NewRegistry(),
+		specs:    specs,
 	}
 
 	sh.registry.Register(commands.NewEcho())
@@ -35,6 +39,7 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 	sh.registry.Register(commands.NewPwd())
 	sh.registry.Register(commands.NewCd())
 	sh.registry.Register(commands.NewType(sh.registry))
+	sh.registry.Register(commands.NewComplete(specs))
 
 	return sh
 }

@@ -102,7 +102,7 @@ func (sh *Shell) handleTab(line []byte) []byte {
 		return line
 	}
 
-	matches := completion.Complete(lineStr, cursor, sh.registry.Names())
+	matches := sh.completionMatches(lineStr, cursor)
 	switch len(matches) {
 	case 0:
 		fmt.Fprint(sh.stdout, "\a")
@@ -143,4 +143,18 @@ func (sh *Shell) handleTab(line []byte) []byte {
 		sh.tabPending = false
 		return line
 	}
+}
+
+// completionMatches предпочитает programmable -C completer для зарегистрированной
+// команды (первое слово строки), иначе — обычное command/path completion.
+func (sh *Shell) completionMatches(line string, cursor int) []string {
+	cmdName := completion.FirstCommand(line)
+	if script, ok := sh.specs.Get(cmdName); ok {
+		matches, err := completion.RunCompleter(script, line, cursor, sh.stderr)
+		if err != nil {
+			return nil
+		}
+		return matches
+	}
+	return completion.Complete(line, cursor, sh.registry.Names())
 }

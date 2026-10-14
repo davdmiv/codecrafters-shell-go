@@ -300,6 +300,69 @@ func TestRun_TabCompletesFilename(t *testing.T) {
 	}
 }
 
+func TestRun_TypeCompleteIsBuiltin(t *testing.T) {
+	stdout, stderr, code := runShell("type complete\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ complete is a shell builtin\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_ProgrammableCompletion(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "git_completer")
+	content := "#!/bin/sh\n" +
+		"case \"$2\" in\n" +
+		"  cl*) printf '%s\\n' clone;;\n" +
+		"esac\n"
+	if err := os.WriteFile(script, []byte(content), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Register, Tab-complete "git cl" → "git clone ", then exit.
+	input := "complete -C " + script + " git\ngit cl\t\nexit\n"
+	stdout, _, code := runShell(input)
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "one ") {
+		t.Errorf("stdout = %q, want Tab to append %q", stdout, "one ")
+	}
+}
+
+func TestRun_ProgrammableCompletionUnregister(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "git_completer")
+	content := "#!/bin/sh\nprintf '%s\\n' clone\n"
+	if err := os.WriteFile(script, []byte(content), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	if err := os.WriteFile("cloneable.txt", []byte("x\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// After -r, Tab on "git clo" should fall back to path completion (cloneable.txt),
+	// not the completer's "clone".
+	input := "complete -C " + script + " git\ncomplete -r git\ngit clo\t\nexit\n"
+	stdout, _, code := runShell(input)
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "neable.txt ") {
+		t.Errorf("stdout = %q, want path completion suffix after unregister", stdout)
+	}
+	if strings.Contains(stdout, "one ") && !strings.Contains(stdout, "neable.txt") {
+		t.Errorf("stdout = %q, completer should not run after -r", stdout)
+	}
+}
+
 func TestRun_TabCompletesDirectoryWithSlash(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
