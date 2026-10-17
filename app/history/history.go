@@ -2,7 +2,10 @@
 package history
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 )
 
@@ -29,8 +32,38 @@ func (h *History) Add(line string) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if n := len(h.entries); n > 0 && h.entries[n-1] == line {
-		return
+	h.addLocked(line, true)
+}
+
+// ReadFile appends every non-empty line from path to in-memory history
+// (bash `history -r`). Consecutive-duplicate skipping is not applied —
+// file contents are appended as-is.
+func (h *History) ReadFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimRight(scanner.Text(), "\r")
+		if line == "" {
+			continue
+		}
+		h.addLocked(line, false)
+	}
+	return scanner.Err()
+}
+
+func (h *History) addLocked(line string, skipDup bool) {
+	if skipDup {
+		if n := len(h.entries); n > 0 && h.entries[n-1] == line {
+			return
+		}
 	}
 	h.entries = append(h.entries, line)
 }
@@ -74,9 +107,9 @@ func (h *History) Get(index int) string {
 	return h.entries[index]
 }
 
-// FormatEntry formats a history line like bash: "    1 echo hi".
+// FormatEntry formats a history line like bash: "    1  echo hi".
 func FormatEntry(e Entry) string {
-	return fmt.Sprintf("%5d %s", e.Number, e.Command)
+	return fmt.Sprintf("%5d  %s", e.Number, e.Command)
 }
 
 // Navigator walks history with ↑/↓ during a single readline session.

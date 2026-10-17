@@ -2,6 +2,8 @@ package commands
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/codecrafters-io/shell-starter-go/app/history"
@@ -24,7 +26,7 @@ func TestHistory_Execute_ListAndLimit(t *testing.T) {
 	if err := NewHistory(store).Execute(ctx, nil); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	want := "    1 echo a\n    2 echo b\n    3 echo c\n"
+	want := "    1  echo a\n    2  echo b\n    3  echo c\n"
 	if got := out.String(); got != want {
 		t.Errorf("stdout = %q, want %q", got, want)
 	}
@@ -33,7 +35,36 @@ func TestHistory_Execute_ListAndLimit(t *testing.T) {
 	if err := NewHistory(store).Execute(ctx, []string{"2"}); err != nil {
 		t.Fatalf("Execute limit: %v", err)
 	}
-	want = "    2 echo b\n    3 echo c\n"
+	want = "    2  echo b\n    3  echo c\n"
+	if got := out.String(); got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+}
+
+func TestHistory_Execute_ReadFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "histfile")
+	if err := os.WriteFile(path, []byte("echo hello\necho world\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	store := history.New()
+	store.Add("history -r " + path)
+
+	var out bytes.Buffer
+	ctx := &Context{Stdout: &out}
+	if err := NewHistory(store).Execute(ctx, []string{"-r", path}); err != nil {
+		t.Fatalf("Execute -r: %v", err)
+	}
+	if got := out.String(); got != "" {
+		t.Errorf("stdout after -r = %q, want empty", got)
+	}
+
+	out.Reset()
+	if err := NewHistory(store).Execute(ctx, nil); err != nil {
+		t.Fatalf("Execute list: %v", err)
+	}
+	want := "    1  history -r " + path + "\n    2  echo hello\n    3  echo world\n"
 	if got := out.String(); got != want {
 		t.Errorf("stdout = %q, want %q", got, want)
 	}

@@ -1,6 +1,7 @@
 package history
 
 import (
+	"os"
 	"testing"
 )
 
@@ -54,8 +55,39 @@ func TestHistory_Last(t *testing.T) {
 }
 
 func TestFormatEntry(t *testing.T) {
-	if got, want := FormatEntry(Entry{1, "ls dist/"}), "    1 ls dist/"; got != want {
+	if got, want := FormatEntry(Entry{1, "ls dist/"}), "    1  ls dist/"; got != want {
 		t.Errorf("FormatEntry = %q, want %q", got, want)
+	}
+}
+
+func TestHistory_ReadFile(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/hist"
+	content := "echo hello\necho world\n\necho hello\n"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := New()
+	h.Add("history -r " + path)
+	if err := h.ReadFile(path); err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	got := h.All()
+	want := []Entry{
+		{1, "history -r " + path},
+		{2, "echo hello"},
+		{3, "echo world"},
+		{4, "echo hello"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("All() = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("All()[%d] = %#v, want %#v", i, got[i], want[i])
+		}
 	}
 }
 

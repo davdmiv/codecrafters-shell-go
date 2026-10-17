@@ -21,6 +21,16 @@ func (h *HistoryCmd) Name() string {
 }
 
 func (h *HistoryCmd) Execute(ctx *Context, args []string) error {
+	if len(args) > 0 && args[0] == "-r" {
+		if len(args) < 2 {
+			return fmt.Errorf("history: -r: option requires an argument")
+		}
+		if err := h.store.ReadFile(args[1]); err != nil {
+			return fmt.Errorf("history: %v", err)
+		}
+		return nil
+	}
+
 	limit := 0
 	if len(args) > 0 {
 		n, err := strconv.Atoi(args[0])

@@ -111,7 +111,7 @@ func TestRun_HistoryListing(t *testing.T) {
 	if code != 0 {
 		t.Errorf("exit code = %d, want 0", code)
 	}
-	want := "$ a\n$ b\n$     1 echo a\n    2 echo b\n    3 history\n$ "
+	want := "$ a\n$ b\n$     1  echo a\n    2  echo b\n    3  history\n$ "
 	if got := stdout; got != want {
 		t.Errorf("stdout = %q, want %q", got, want)
 	}
@@ -126,7 +126,28 @@ func TestRun_HistoryLimit(t *testing.T) {
 	if code != 0 {
 		t.Errorf("exit code = %d, want 0", code)
 	}
-	want := "$ a\n$ b\n$ c\n$     3 echo c\n    4 history 2\n$ "
+	want := "$ a\n$ b\n$ c\n$     3  echo c\n    4  history 2\n$ "
+	if got := stdout; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_HistoryReadFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "histfile")
+	if err := os.WriteFile(path, []byte("echo hello\necho world\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runShell("history -r " + path + "\nhistory\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	want := "$ $     1  history -r " + path + "\n    2  echo hello\n    3  echo world\n    4  history\n$ "
 	if got := stdout; got != want {
 		t.Errorf("stdout = %q, want %q", got, want)
 	}
