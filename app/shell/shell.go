@@ -15,6 +15,7 @@ import (
 	"github.com/codecrafters-io/shell-starter-go/app/history"
 	"github.com/codecrafters-io/shell-starter-go/app/jobs"
 	"github.com/codecrafters-io/shell-starter-go/app/parser"
+	"github.com/codecrafters-io/shell-starter-go/app/vars"
 )
 
 type Shell struct {
@@ -25,6 +26,7 @@ type Shell struct {
 	specs       *completion.Specs
 	jobs        *jobs.Manager
 	history     *history.History
+	vars        *vars.Store
 	interactive bool // raw TTY: echo keystrokes ourselves
 	tabPending  bool // first Tab on ambiguous match already rang the bell
 }
@@ -33,6 +35,7 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 	specs := completion.NewSpecs()
 	jobMgr := jobs.NewManager()
 	hist := history.New()
+	varStore := vars.New()
 	sh := &Shell{
 		stdout:   newSyncWriter(stdout),
 		stderr:   newSyncWriter(stderr),
@@ -41,6 +44,7 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 		specs:    specs,
 		jobs:     jobMgr,
 		history:  hist,
+		vars:     varStore,
 	}
 
 	sh.registry.Register(commands.NewEcho())
@@ -51,6 +55,7 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 	sh.registry.Register(commands.NewComplete(specs))
 	sh.registry.Register(commands.NewJobs(jobMgr))
 	sh.registry.Register(commands.NewHistory(hist))
+	sh.registry.Register(commands.NewDeclare(varStore))
 
 	return sh
 }

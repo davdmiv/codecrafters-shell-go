@@ -105,6 +105,62 @@ func TestRun_TypeHistoryIsBuiltin(t *testing.T) {
 	}
 }
 
+func TestRun_TypeDeclareIsBuiltin(t *testing.T) {
+	stdout, stderr, code := runShell("type declare\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ declare is a shell builtin\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_DeclareAssignAndPrint(t *testing.T) {
+	stdout, stderr, code := runShell("declare variable=value\ndeclare -p variable\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ declare -- variable=\"value\"\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_DeclarePrintMissing(t *testing.T) {
+	stdout, stderr, code := runShell("declare -p missing_variable\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if got, want := stderr, "declare: missing_variable: not found\n"; got != want {
+		t.Errorf("stderr = %q, want %q", got, want)
+	}
+}
+
+func TestRun_DeclareInvalidIdentifier(t *testing.T) {
+	stdout, stderr, code := runShell("declare 5bad=x\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if got, want := stderr, "declare: `5bad=x': not a valid identifier\n"; got != want {
+		t.Errorf("stderr = %q, want %q", got, want)
+	}
+}
+
 func TestRun_HistoryListing(t *testing.T) {
 	stdout, stderr, code := runShell("echo a\necho b\nhistory\nexit\n")
 
