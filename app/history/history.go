@@ -60,6 +60,14 @@ func (h *History) ReadFile(path string) error {
 	return scanner.Err()
 }
 
+// MarkSaved treats the current list as already persisted (e.g. after
+// loading HISTFILE on startup), so a later AppendFile only writes new lines.
+func (h *History) MarkSaved() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.saved = len(h.entries)
+}
+
 // WriteFile overwrites path with the full in-memory history
 // (bash `history -w`), one command per line.
 func (h *History) WriteFile(path string) error {

@@ -60,6 +60,32 @@ func TestFormatEntry(t *testing.T) {
 	}
 }
 
+func TestHistory_MarkSavedThenAppend(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/hist"
+	if err := os.WriteFile(path, []byte("echo old\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := New()
+	if err := h.ReadFile(path); err != nil {
+		t.Fatal(err)
+	}
+	h.MarkSaved()
+	h.Add("echo new")
+	if err := h.AppendFile(path); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), "echo old\necho new\n"; got != want {
+		t.Errorf("file = %q, want %q", got, want)
+	}
+}
+
 func TestHistory_AppendFile(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/hist"

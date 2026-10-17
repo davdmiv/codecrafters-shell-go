@@ -135,6 +135,61 @@ func TestRun_HistoryLimit(t *testing.T) {
 	}
 }
 
+func TestRun_HISTFILELoadAndSave(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "histfile")
+	if err := os.WriteFile(path, []byte("echo loaded\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HISTFILE", path)
+
+	stdout, stderr, code := runShell("echo session\nhistory\nexit\n")
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	wantOut := "$ session\n$     1  echo loaded\n    2  echo session\n    3  history\n$ "
+	if got := stdout; got != wantOut {
+		t.Errorf("stdout = %q, want %q", got, wantOut)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Loaded line stays; session lines (incl. history + exit) are appended.
+	wantFile := "echo loaded\necho session\nhistory\nexit\n"
+	if got := string(data); got != wantFile {
+		t.Errorf("HISTFILE = %q, want %q", got, wantFile)
+	}
+}
+
+func TestRun_HISTFILESaveOnEOF(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "histfile")
+	t.Setenv("HISTFILE", path)
+
+	stdout, stderr, code := runShell("echo hi")
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "hi") {
+		t.Errorf("stdout = %q, want echo output", stdout)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), "echo hi\n"; got != want {
+		t.Errorf("HISTFILE = %q, want %q", got, want)
+	}
+}
+
 func TestRun_HistoryAppendFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "histfile")

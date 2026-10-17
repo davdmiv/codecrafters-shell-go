@@ -56,6 +56,9 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 }
 
 func (sh *Shell) Run() int {
+	sh.loadHistFile()
+	defer sh.saveHistFile()
+
 	reader := bufio.NewReader(sh.stdin)
 
 	for {
@@ -94,6 +97,33 @@ func (sh *Shell) Run() int {
 		if code, ok := sh.execute(pipeline, command); ok {
 			return code
 		}
+	}
+}
+
+// loadHistFile loads HISTFILE into memory on startup (missing file is OK).
+func (sh *Shell) loadHistFile() {
+	path := os.Getenv("HISTFILE")
+	if path == "" {
+		return
+	}
+	if err := sh.history.ReadFile(path); err != nil {
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(sh.stderr, "history: %v\n", err)
+		}
+		return
+	}
+	// Already on disk — don't re-append them on exit.
+	sh.history.MarkSaved()
+}
+
+// saveHistFile appends new in-memory entries to HISTFILE on exit.
+func (sh *Shell) saveHistFile() {
+	path := os.Getenv("HISTFILE")
+	if path == "" {
+		return
+	}
+	if err := sh.history.AppendFile(path); err != nil {
+		fmt.Fprintf(sh.stderr, "history: %v\n", err)
 	}
 }
 
