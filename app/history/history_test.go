@@ -60,6 +60,49 @@ func TestFormatEntry(t *testing.T) {
 	}
 }
 
+func TestHistory_AppendFile(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/hist"
+
+	h := New()
+	h.Add("echo a")
+	h.Add("echo b")
+	if err := h.AppendFile(path); err != nil {
+		t.Fatalf("AppendFile: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), "echo a\necho b\n"; got != want {
+		t.Fatalf("after first -a: %q, want %q", got, want)
+	}
+
+	h.Add("echo c")
+	if err := h.AppendFile(path); err != nil {
+		t.Fatalf("AppendFile 2: %v", err)
+	}
+	data, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), "echo a\necho b\necho c\n"; got != want {
+		t.Fatalf("after second -a: %q, want %q", got, want)
+	}
+
+	// Nothing new — file unchanged.
+	if err := h.AppendFile(path); err != nil {
+		t.Fatalf("AppendFile 3: %v", err)
+	}
+	data, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), "echo a\necho b\necho c\n"; got != want {
+		t.Fatalf("after empty -a: %q, want %q", got, want)
+	}
+}
+
 func TestHistory_WriteFile(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/hist"

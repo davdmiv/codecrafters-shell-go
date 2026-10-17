@@ -135,6 +135,36 @@ func TestRun_HistoryLimit(t *testing.T) {
 	}
 }
 
+func TestRun_HistoryAppendFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "histfile")
+	if err := os.WriteFile(path, []byte("old\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runShell(
+		"echo hello\nhistory -a " + path + "\necho world\nhistory -a " + path + "\nexit\n",
+	)
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ hello\n$ $ world\n$ $ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantFile := "old\necho hello\nhistory -a " + path + "\necho world\nhistory -a " + path + "\n"
+	if got := string(data); got != wantFile {
+		t.Errorf("file = %q, want %q", got, wantFile)
+	}
+}
+
 func TestRun_HistoryWriteFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "histfile")

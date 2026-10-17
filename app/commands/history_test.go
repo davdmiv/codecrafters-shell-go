@@ -41,6 +41,33 @@ func TestHistory_Execute_ListAndLimit(t *testing.T) {
 	}
 }
 
+func TestHistory_Execute_AppendFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "histfile")
+	if err := os.WriteFile(path, []byte("preexisting\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	store := history.New()
+	store.Add("echo a")
+	store.Add("history -a " + path)
+
+	var out bytes.Buffer
+	ctx := &Context{Stdout: &out}
+	if err := NewHistory(store).Execute(ctx, []string{"-a", path}); err != nil {
+		t.Fatalf("Execute -a: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "preexisting\necho a\nhistory -a " + path + "\n"
+	if got := string(data); got != want {
+		t.Errorf("file = %q, want %q", got, want)
+	}
+}
+
 func TestHistory_Execute_WriteFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "histfile")

@@ -19,6 +19,7 @@ type Entry struct {
 type History struct {
 	mu      sync.Mutex
 	entries []string
+	saved   int // entries[:saved] already written via -w / -a
 }
 
 func New() *History {
@@ -71,8 +72,43 @@ func (h *History) WriteFile(path string) error {
 	}
 	defer f.Close()
 
+	if err := writeLines(f, h.entries); err != nil {
+		return err
+	}
+	h.saved = len(h.entries)
+	return nil
+}
+
+// AppendFile appends history lines not yet written by -w/-a
+// (bash `history -a`).
+func (h *History) AppendFile(path string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.saved > len(h.entries) {
+		h.saved = len(h.entries)
+	}
+	pending := h.entries[h.saved:]
+	if len(pending) == 0 {
+		return nil
+	}
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err := writeLines(f, pending); err != nil {
+		return err
+	}
+	h.saved = len(h.entries)
+	return nil
+}
+
+func writeLines(f *os.File, lines []string) error {
 	w := bufio.NewWriter(f)
-	for _, line := range h.entries {
+	for _, line := range lines {
 		if _, err := w.WriteString(line); err != nil {
 			return err
 		}
