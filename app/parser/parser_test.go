@@ -112,7 +112,7 @@ func TestTokenize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tokens, err := tokenize(tt.input)
+			tokens, err := tokenize(tt.input, nil)
 
 			if tt.wantErr != "" {
 				if err == nil {
@@ -145,8 +145,67 @@ func TestTokenize(t *testing.T) {
 	}
 }
 
+func TestParse_VariableExpansion(t *testing.T) {
+	lookup := func(name string) string {
+		switch name {
+		case "Variable_1":
+			return "value"
+		case "Variable_2":
+			return "value2"
+		case "Pear":
+			return "banana"
+		default:
+			return ""
+		}
+	}
+
+	got, err := Parse("echo $Variable_1 $Variable_2", lookup)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want := &Pipeline{Commands: []*Command{
+		{Name: "echo", Args: []string{"value", "value2"}},
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Parse = %#v, want %#v", got, want)
+	}
+
+	got, err = Parse("echo raspberry_$Pear", lookup)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want = &Pipeline{Commands: []*Command{
+		{Name: "echo", Args: []string{"raspberry_banana"}},
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("inline Parse = %#v, want %#v", got, want)
+	}
+
+	got, err = Parse("echo $missing x", lookup)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want = &Pipeline{Commands: []*Command{
+		{Name: "echo", Args: []string{"x"}},
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unset Parse = %#v, want %#v", got, want)
+	}
+
+	got, err = Parse(`echo '$Variable_1'`, lookup)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want = &Pipeline{Commands: []*Command{
+		{Name: "echo", Args: []string{"$Variable_1"}},
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("quoted Parse = %#v, want %#v", got, want)
+	}
+}
+
 func TestTokenize_Pipe(t *testing.T) {
-	tokens, err := tokenize("echo hello | wc -c")
+	tokens, err := tokenize("echo hello | wc -c", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -374,7 +433,7 @@ func TestParse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Parse(tt.input)
+			got, err := Parse(tt.input, nil)
 
 			if tt.wantErr != "" {
 				if err == nil || err.Error() != tt.wantErr {

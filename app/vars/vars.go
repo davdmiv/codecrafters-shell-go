@@ -31,6 +31,12 @@ func (s *Store) Get(name string) (string, bool) {
 	return v, ok
 }
 
+// Lookup returns the value or "" if the variable is unset (for $VAR expansion).
+func (s *Store) Lookup(name string) string {
+	v, _ := s.Get(name)
+	return v
+}
+
 // IsValidIdentifier reports whether name is a valid shell variable name:
 // [A-Za-z_][A-Za-z0-9_]*.
 func IsValidIdentifier(name string) bool {

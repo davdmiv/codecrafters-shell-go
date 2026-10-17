@@ -6,16 +6,20 @@ import (
 	"unicode"
 )
 
+// Lookup resolves a variable name to its value ("" if unset).
+type Lookup func(name string) string
+
 // Parse парсит строку и возвращает Pipeline (одна команда — тоже Pipeline).
-func Parse(input string) (*Pipeline, error) {
-	tokens, err := tokenize(input)
+// Если lookup != nil, раскрывает $VAR / ${VAR} вне одинарных кавычек.
+func Parse(input string, lookup Lookup) (*Pipeline, error) {
+	tokens, err := tokenize(input, lookup)
 	if err != nil {
 		return nil, err
 	}
 	return buildPipeline(tokens)
 }
 
-func tokenize(input string) ([]Token, error) {
+func tokenize(input string, lookup Lookup) ([]Token, error) {
 	var tokens []Token
 	var arg strings.Builder
 	isSingleQuotes := false
@@ -23,6 +27,21 @@ func tokenize(input string) ([]Token, error) {
 	isBackslash := false
 	inArg := false
 	argPlain := true
+	argQuoted := false
+
+	flushArg := func() {
+		if !inArg {
+			return
+		}
+		// Пустой неquoted аргумент после раскрытия $UNSET отбрасываем (как bash).
+		if arg.Len() > 0 || argQuoted {
+			tokens = append(tokens, Token{Type: TokenArg, Value: arg.String()})
+		}
+		arg.Reset()
+		inArg = false
+		argPlain = true
+		argQuoted = false
+	}
 
 	inputRunes := []rune(input)
 	for i := 0; i < len(inputRunes); i++ {
@@ -37,27 +56,30 @@ func tokenize(input string) ([]Token, error) {
 			isSingleQuotes = !isSingleQuotes
 			inArg = true
 			argPlain = false
+			argQuoted = true
 		case r == '"' && !isSingleQuotes:
 			isDoubleQuotes = !isDoubleQuotes
 			inArg = true
 			argPlain = false
+			argQuoted = true
 		case r == '\\' && !isSingleQuotes:
 			isBackslash = true
 			argPlain = false
+		case r == '$' && !isSingleQuotes && lookup != nil:
+			name, end := readParam(inputRunes, i)
+			if name == "" {
+				arg.WriteRune('$')
+				inArg = true
+			} else {
+				arg.WriteString(lookup(name))
+				inArg = true
+				argPlain = false
+				i = end
+			}
 		case !isSingleQuotes && !isDoubleQuotes && unicode.IsSpace(r):
-			if inArg {
-				tokens = append(tokens, Token{Type: TokenArg, Value: arg.String()})
-				arg.Reset()
-				inArg = false
-				argPlain = true
-			}
+			flushArg()
 		case !isSingleQuotes && !isDoubleQuotes && r == '|':
-			if inArg {
-				tokens = append(tokens, Token{Type: TokenArg, Value: arg.String()})
-				arg.Reset()
-				inArg = false
-				argPlain = true
-			}
+			flushArg()
 			tokens = append(tokens, Token{Type: TokenPipe, Value: "|"})
 		case !isSingleQuotes && !isDoubleQuotes && (r == '<' || r == '>'):
 			redirectType := TokenRedirectOut
@@ -69,20 +91,18 @@ func tokenize(input string) ([]Token, error) {
 					redirectType = TokenRedirectOut
 					arg.Reset()
 					inArg = false
+					argQuoted = false
 				case "2":
 					redirectType = TokenRedirectErr
 					arg.Reset()
 					inArg = false
+					argQuoted = false
 				}
 			}
 			if r == '>' && i+1 < len(inputRunes) && inputRunes[i+1] == '>' && redirectType == TokenRedirectErr {
 				redirectType = TokenRedirectAppendErr
 			}
-			if inArg {
-				tokens = append(tokens, Token{Type: TokenArg, Value: arg.String()})
-				arg.Reset()
-				inArg = false
-			}
+			flushArg()
 
 			switch r {
 			case '<':
@@ -105,9 +125,7 @@ func tokenize(input string) ([]Token, error) {
 		}
 	}
 
-	if inArg {
-		tokens = append(tokens, Token{Type: TokenArg, Value: arg.String()})
-	}
+	flushArg()
 
 	if isBackslash {
 		return nil, errors.New("unterminated escape")
@@ -122,6 +140,42 @@ func tokenize(input string) ([]Token, error) {
 	}
 
 	return tokens, nil
+}
+
+// readParam читает $NAME или ${NAME}, начиная с '$' в runes[i].
+// Возвращает имя и индекс последнего потреблённого руна.
+// Если это не параметр — ("", i).
+func readParam(runes []rune, i int) (name string, end int) {
+	if i+1 >= len(runes) {
+		return "", i
+	}
+	if runes[i+1] == '{' {
+		j := i + 2
+		for j < len(runes) && runes[j] != '}' {
+			j++
+		}
+		if j >= len(runes) {
+			return "", i
+		}
+		return string(runes[i+2 : j]), j
+	}
+	j := i + 1
+	if !isParamStart(runes[j]) {
+		return "", i
+	}
+	j++
+	for j < len(runes) && isParamCont(runes[j]) {
+		j++
+	}
+	return string(runes[i+1 : j]), j - 1
+}
+
+func isParamStart(r rune) bool {
+	return r == '_' || unicode.IsLetter(r)
+}
+
+func isParamCont(r rune) bool {
+	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 func buildPipeline(tokens []Token) (*Pipeline, error) {

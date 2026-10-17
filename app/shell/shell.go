@@ -94,7 +94,7 @@ func (sh *Shell) Run() int {
 
 		sh.history.Add(command)
 
-		pipeline, err := parser.Parse(command)
+		pipeline, err := parser.Parse(command, sh.vars.Lookup)
 		if err != nil {
 			fmt.Fprintf(sh.stderr, "Parse error: %v\n", err)
 			continue

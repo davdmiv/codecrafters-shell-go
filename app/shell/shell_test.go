@@ -133,6 +133,38 @@ func TestRun_DeclareAssignAndPrint(t *testing.T) {
 	}
 }
 
+func TestRun_VariableExpansion(t *testing.T) {
+	stdout, stderr, code := runShell(
+		"declare Variable_1=value\ndeclare Variable_2=value2\necho $Variable_1 $Variable_2\nexit\n",
+	)
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ $ value value2\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_VariableExpansionInline(t *testing.T) {
+	stdout, stderr, code := runShell(
+		"declare Pear_3=banana\necho raspberry_$Pear_3\nexit\n",
+	)
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ raspberry_banana\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
 func TestRun_DeclarePrintMissing(t *testing.T) {
 	stdout, stderr, code := runShell("declare -p missing_variable\nexit\n")
 
