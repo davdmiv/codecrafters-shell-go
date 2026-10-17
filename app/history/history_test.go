@@ -60,6 +60,30 @@ func TestFormatEntry(t *testing.T) {
 	}
 }
 
+func TestHistory_WriteFile(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/hist"
+
+	h := New()
+	h.Add("echo a")
+	h.Add("echo b")
+	// Pre-existing content must be overwritten.
+	if err := os.WriteFile(path, []byte("old\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.WriteFile(path); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), "echo a\necho b\n"; got != want {
+		t.Errorf("file = %q, want %q", got, want)
+	}
+}
+
 func TestHistory_ReadFile(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/hist"

@@ -59,6 +59,30 @@ func (h *History) ReadFile(path string) error {
 	return scanner.Err()
 }
 
+// WriteFile overwrites path with the full in-memory history
+// (bash `history -w`), one command per line.
+func (h *History) WriteFile(path string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+	for _, line := range h.entries {
+		if _, err := w.WriteString(line); err != nil {
+			return err
+		}
+		if err := w.WriteByte('\n'); err != nil {
+			return err
+		}
+	}
+	return w.Flush()
+}
+
 func (h *History) addLocked(line string, skipDup bool) {
 	if skipDup {
 		if n := len(h.entries); n > 0 && h.entries[n-1] == line {

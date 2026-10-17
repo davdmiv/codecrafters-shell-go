@@ -21,11 +21,19 @@ func (h *HistoryCmd) Name() string {
 }
 
 func (h *HistoryCmd) Execute(ctx *Context, args []string) error {
-	if len(args) > 0 && args[0] == "-r" {
+	if len(args) > 0 && (args[0] == "-r" || args[0] == "-w") {
+		flag := args[0]
 		if len(args) < 2 {
-			return fmt.Errorf("history: -r: option requires an argument")
+			return fmt.Errorf("history: %s: option requires an argument", flag)
 		}
-		if err := h.store.ReadFile(args[1]); err != nil {
+		var err error
+		switch flag {
+		case "-r":
+			err = h.store.ReadFile(args[1])
+		case "-w":
+			err = h.store.WriteFile(args[1])
+		}
+		if err != nil {
 			return fmt.Errorf("history: %v", err)
 		}
 		return nil
