@@ -10,6 +10,7 @@ const (
 	TokenRedirectIn                         // <
 	TokenRedirectErr                        // 2>
 	TokenRedirectAppendErr                  // 2>>
+	TokenPipe                               // |
 )
 
 // Token представляет один токен
@@ -24,10 +25,15 @@ type Redirection struct {
 	FilePath string
 }
 
-// Command представляет собой распарсенную строку ввода.
+// Command представляет одну команду в pipeline.
 type Command struct {
 	Name         string        // Имя команды (например, "echo")
 	Args         []string      // Аргументы (например, ["hello"])
 	Redirections []Redirection // Перенаправления (если есть)
-	Background   bool          // команда завершается на &
+}
+
+// Pipeline — одна или несколько команд, соединённых `|`.
+type Pipeline struct {
+	Commands   []*Command
+	Background bool // завершающий `&` относится ко всему pipeline
 }

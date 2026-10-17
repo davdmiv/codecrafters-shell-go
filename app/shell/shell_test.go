@@ -91,6 +91,71 @@ func TestRun_EchoAndExit(t *testing.T) {
 	}
 }
 
+func TestRun_DualPipelineBuiltinToExternal(t *testing.T) {
+	stdout, stderr, code := runShell("echo hello | cat\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ hello\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_DualPipelineExternals(t *testing.T) {
+	stdout, stderr, code := runShell("printf 'b\\na\\n' | sort\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ a\nb\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_MultiPipeline(t *testing.T) {
+	stdout, stderr, code := runShell("echo hello | cat | cat\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ hello\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_PipelineRedirectOut(t *testing.T) {
+	dir := t.TempDir()
+	outFile := filepath.Join(dir, "out.txt")
+	stdout, stderr, code := runShell("echo hello | cat > " + outFile + "\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ $ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("read out: %v", err)
+	}
+	if got, want := string(data), "hello\n"; got != want {
+		t.Errorf("file = %q, want %q", got, want)
+	}
+}
+
 func TestRun_ExitWithCode(t *testing.T) {
 	stdout, stderr, code := runShell("exit 3\n")
 

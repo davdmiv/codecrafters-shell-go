@@ -6,13 +6,13 @@ import (
 	"unicode"
 )
 
-// Parse парсит строку и возвращает структуру Command
-func Parse(input string) (*Command, error) {
+// Parse парсит строку и возвращает Pipeline (одна команда — тоже Pipeline).
+func Parse(input string) (*Pipeline, error) {
 	tokens, err := tokenize(input)
 	if err != nil {
 		return nil, err
 	}
-	return buildCommand(tokens)
+	return buildPipeline(tokens)
 }
 
 func tokenize(input string) ([]Token, error) {
@@ -51,6 +51,14 @@ func tokenize(input string) ([]Token, error) {
 				inArg = false
 				argPlain = true
 			}
+		case !isSingleQuotes && !isDoubleQuotes && r == '|':
+			if inArg {
+				tokens = append(tokens, Token{Type: TokenArg, Value: arg.String()})
+				arg.Reset()
+				inArg = false
+				argPlain = true
+			}
+			tokens = append(tokens, Token{Type: TokenPipe, Value: "|"})
 		case !isSingleQuotes && !isDoubleQuotes && (r == '<' || r == '>'):
 			redirectType := TokenRedirectOut
 			// A directly adjacent, unquoted `1` or `2` is an explicit file
@@ -116,7 +124,51 @@ func tokenize(input string) ([]Token, error) {
 	return tokens, nil
 }
 
-// buildCommand собирает токены в структуру Command
+func buildPipeline(tokens []Token) (*Pipeline, error) {
+	if len(tokens) == 0 {
+		return nil, errors.New("empty command")
+	}
+
+	background := false
+	if n := len(tokens); tokens[n-1].Type == TokenArg && tokens[n-1].Value == "&" {
+		if n == 1 {
+			return nil, errors.New("empty command")
+		}
+		background = true
+		tokens = tokens[:n-1]
+	}
+
+	var segments [][]Token
+	var current []Token
+	for _, token := range tokens {
+		if token.Type == TokenPipe {
+			if len(current) == 0 {
+				return nil, errors.New("empty command in pipeline")
+			}
+			segments = append(segments, current)
+			current = nil
+			continue
+		}
+		current = append(current, token)
+	}
+	if len(current) == 0 {
+		return nil, errors.New("empty command in pipeline")
+	}
+	segments = append(segments, current)
+
+	commands := make([]*Command, 0, len(segments))
+	for _, seg := range segments {
+		cmd, err := buildCommand(seg)
+		if err != nil {
+			return nil, err
+		}
+		commands = append(commands, cmd)
+	}
+
+	return &Pipeline{Commands: commands, Background: background}, nil
+}
+
+// buildCommand собирает токены одной команды (без `|` и завершающего `&`).
 func buildCommand(tokens []Token) (*Command, error) {
 	if len(tokens) == 0 {
 		return nil, errors.New("empty command")
@@ -125,18 +177,8 @@ func buildCommand(tokens []Token) (*Command, error) {
 		return nil, errors.New("command name must come before redirections")
 	}
 
-	if len(tokens) == 1 && tokens[0].Type == TokenArg && tokens[0].Value == "&" {
-		return nil, errors.New("empty command")
-	}
-
 	cmd := &Command{
 		Name: tokens[0].Value,
-	}
-
-	// Trailing `&` starts a background job (bash-style).
-	if n := len(tokens); n >= 2 && tokens[n-1].Type == TokenArg && tokens[n-1].Value == "&" {
-		cmd.Background = true
-		tokens = tokens[:n-1]
 	}
 
 	for i := 1; i < len(tokens); i++ {

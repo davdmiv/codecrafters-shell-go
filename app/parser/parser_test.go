@@ -145,32 +145,59 @@ func TestTokenize(t *testing.T) {
 	}
 }
 
+func TestTokenize_Pipe(t *testing.T) {
+	tokens, err := tokenize("echo hello | wc -c")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantTypes := []TokenType{TokenArg, TokenArg, TokenPipe, TokenArg, TokenArg}
+	wantVals := []string{"echo", "hello", "|", "wc", "-c"}
+	if len(tokens) != len(wantTypes) {
+		t.Fatalf("len = %d, want %d (%#v)", len(tokens), len(wantTypes), tokens)
+	}
+	for i := range tokens {
+		if tokens[i].Type != wantTypes[i] || tokens[i].Value != wantVals[i] {
+			t.Fatalf("token %d = {%v %q}, want {%v %q}", i, tokens[i].Type, tokens[i].Value, wantTypes[i], wantVals[i])
+		}
+	}
+}
+
 func TestParse(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		want    *Command
+		want    *Pipeline
 		wantErr string
 	}{
 		{
 			name:  "command and arguments",
 			input: "echo hello world",
-			want:  &Command{Name: "echo", Args: []string{"hello", "world"}},
+			want: &Pipeline{Commands: []*Command{
+				{Name: "echo", Args: []string{"hello", "world"}},
+			}},
 		},
 		{
 			name:  "command without arguments",
 			input: "pwd",
-			want:  &Command{Name: "pwd"},
+			want: &Pipeline{Commands: []*Command{
+				{Name: "pwd"},
+			}},
 		},
 		{
 			name:  "background command",
 			input: "sleep 10 &",
-			want:  &Command{Name: "sleep", Args: []string{"10"}, Background: true},
+			want: &Pipeline{
+				Commands:   []*Command{{Name: "sleep", Args: []string{"10"}}},
+				Background: true,
+			},
 		},
 		{
 			name:  "background without args",
 			input: "true &",
-			want:  &Command{Name: "true", Background: true},
+			want: &Pipeline{
+				Commands:   []*Command{{Name: "true"}},
+				Background: true,
+			},
 		},
 		{
 			name:    "background only ampersand",
@@ -180,91 +207,148 @@ func TestParse(t *testing.T) {
 		{
 			name:  "output redirection",
 			input: "echo hello > out.txt",
-			want: &Command{
+			want: &Pipeline{Commands: []*Command{{
 				Name: "echo",
 				Args: []string{"hello"},
 				Redirections: []Redirection{{
 					Type: TokenRedirectOut, FilePath: "out.txt",
 				}},
-			},
+			}}},
 		},
 		{
 			name:  "redirection adjacent to argument",
 			input: "echo hello>out.txt",
-			want: &Command{
+			want: &Pipeline{Commands: []*Command{{
 				Name: "echo",
 				Args: []string{"hello"},
 				Redirections: []Redirection{{
 					Type: TokenRedirectOut, FilePath: "out.txt",
 				}},
-			},
+			}}},
 		},
 		{
 			name:  "quoted redirection-like argument",
 			input: `echo ">"`,
-			want:  &Command{Name: "echo", Args: []string{">"}},
+			want: &Pipeline{Commands: []*Command{
+				{Name: "echo", Args: []string{">"}},
+			}},
 		},
 		{
 			name:  "escaped redirection-like argument",
 			input: `echo \>`,
-			want:  &Command{Name: "echo", Args: []string{">"}},
+			want: &Pipeline{Commands: []*Command{
+				{Name: "echo", Args: []string{">"}},
+			}},
 		},
 		{
 			name:  "quoted redirection filename",
 			input: `echo hello>"out file.txt"`,
-			want: &Command{
+			want: &Pipeline{Commands: []*Command{{
 				Name: "echo",
 				Args: []string{"hello"},
 				Redirections: []Redirection{{
 					Type: TokenRedirectOut, FilePath: "out file.txt",
 				}},
-			},
+			}}},
 		},
 		{
 			name:  "explicit stdout file descriptor",
 			input: "echo 1>out.txt",
-			want: &Command{
+			want: &Pipeline{Commands: []*Command{{
 				Name: "echo",
 				Redirections: []Redirection{{
 					Type: TokenRedirectOut, FilePath: "out.txt",
 				}},
-			},
+			}}},
 		},
 		{
 			name:  "stderr redirection",
 			input: "cmd 2>errors.log",
-			want: &Command{
+			want: &Pipeline{Commands: []*Command{{
 				Name: "cmd",
 				Redirections: []Redirection{{
 					Type: TokenRedirectErr, FilePath: "errors.log",
 				}},
-			},
+			}}},
 		},
 		{
 			name:  "append stderr redirection",
 			input: "cmd 2>>errors.log",
-			want: &Command{
+			want: &Pipeline{Commands: []*Command{{
 				Name: "cmd",
 				Redirections: []Redirection{{
 					Type: TokenRedirectAppendErr, FilePath: "errors.log",
 				}},
-			},
+			}}},
 		},
 		{
 			name:  "append and input redirections",
 			input: "cat < in.txt >> out.txt",
-			want: &Command{
+			want: &Pipeline{Commands: []*Command{{
 				Name: "cat",
 				Redirections: []Redirection{
 					{Type: TokenRedirectIn, FilePath: "in.txt"},
 					{Type: TokenRedirectAppend, FilePath: "out.txt"},
 				},
+			}}},
+		},
+		{
+			name:  "dual-command pipeline",
+			input: "echo hello | wc -c",
+			want: &Pipeline{Commands: []*Command{
+				{Name: "echo", Args: []string{"hello"}},
+				{Name: "wc", Args: []string{"-c"}},
+			}},
+		},
+		{
+			name:  "multi-command pipeline",
+			input: "cat file | sort | uniq",
+			want: &Pipeline{Commands: []*Command{
+				{Name: "cat", Args: []string{"file"}},
+				{Name: "sort"},
+				{Name: "uniq"},
+			}},
+		},
+		{
+			name:  "pipeline with background",
+			input: "echo a | wc &",
+			want: &Pipeline{
+				Commands: []*Command{
+					{Name: "echo", Args: []string{"a"}},
+					{Name: "wc"},
+				},
+				Background: true,
 			},
+		},
+		{
+			name:  "quoted pipe is argument",
+			input: `echo "|"`,
+			want: &Pipeline{Commands: []*Command{
+				{Name: "echo", Args: []string{"|"}},
+			}},
+		},
+		{
+			name:  "pipeline with spaces around pipe",
+			input: "echo hello|wc -c",
+			want: &Pipeline{Commands: []*Command{
+				{Name: "echo", Args: []string{"hello"}},
+				{Name: "wc", Args: []string{"-c"}},
+			}},
 		},
 		{
 			name:    "empty command",
 			input:   "  \t ",
 			wantErr: "empty command",
+		},
+		{
+			name:    "empty left of pipe",
+			input:   "| wc",
+			wantErr: "empty command in pipeline",
+		},
+		{
+			name:    "empty right of pipe",
+			input:   "echo |",
+			wantErr: "empty command in pipeline",
 		},
 		{
 			name:    "missing output redirection file",
@@ -297,7 +381,7 @@ func TestParse(t *testing.T) {
 					t.Fatalf("Parse(%q) error = %v, want %q", tt.input, err, tt.wantErr)
 				}
 				if got != nil {
-					t.Fatalf("Parse(%q) command = %#v, want nil on error", tt.input, got)
+					t.Fatalf("Parse(%q) pipeline = %#v, want nil on error", tt.input, got)
 				}
 				return
 			}
