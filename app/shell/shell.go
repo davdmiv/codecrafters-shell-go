@@ -12,6 +12,7 @@ import (
 
 	"github.com/codecrafters-io/shell-starter-go/app/commands"
 	"github.com/codecrafters-io/shell-starter-go/app/completion"
+	"github.com/codecrafters-io/shell-starter-go/app/history"
 	"github.com/codecrafters-io/shell-starter-go/app/jobs"
 	"github.com/codecrafters-io/shell-starter-go/app/parser"
 )
@@ -23,6 +24,7 @@ type Shell struct {
 	registry    *commands.Registry
 	specs       *completion.Specs
 	jobs        *jobs.Manager
+	history     *history.History
 	interactive bool // raw TTY: echo keystrokes ourselves
 	tabPending  bool // first Tab on ambiguous match already rang the bell
 }
@@ -30,6 +32,7 @@ type Shell struct {
 func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 	specs := completion.NewSpecs()
 	jobMgr := jobs.NewManager()
+	hist := history.New()
 	sh := &Shell{
 		stdout:   newSyncWriter(stdout),
 		stderr:   newSyncWriter(stderr),
@@ -37,6 +40,7 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 		registry: commands.NewRegistry(),
 		specs:    specs,
 		jobs:     jobMgr,
+		history:  hist,
 	}
 
 	sh.registry.Register(commands.NewEcho())
@@ -46,6 +50,7 @@ func New(stdout, stderr io.Writer, stdin io.Reader) *Shell {
 	sh.registry.Register(commands.NewType(sh.registry))
 	sh.registry.Register(commands.NewComplete(specs))
 	sh.registry.Register(commands.NewJobs(jobMgr))
+	sh.registry.Register(commands.NewHistory(hist))
 
 	return sh
 }
@@ -78,6 +83,8 @@ func (sh *Shell) Run() int {
 		if command == "" {
 			continue
 		}
+
+		sh.history.Add(command)
 
 		pipeline, err := parser.Parse(command)
 		if err != nil {

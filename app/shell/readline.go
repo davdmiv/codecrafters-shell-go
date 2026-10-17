@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/codecrafters-io/shell-starter-go/app/completion"
+	"github.com/codecrafters-io/shell-starter-go/app/history"
 	"golang.org/x/term"
 )
 
@@ -35,6 +36,7 @@ func (sh *Shell) enableRawMode() (restore func()) {
 func (sh *Shell) readLine(reader *bufio.Reader) (string, error) {
 	var line []byte
 	sh.tabPending = false
+	nav := sh.history.BeginNav("")
 
 	for {
 		r, _, err := reader.ReadRune()
@@ -60,6 +62,7 @@ func (sh *Shell) readLine(reader *bufio.Reader) (string, error) {
 			return string(line), nil
 		case '\t':
 			line = sh.handleTab(line)
+			nav.SyncDraft(string(line))
 		case 127, '\b':
 			if len(line) == 0 {
 				continue
@@ -67,9 +70,12 @@ func (sh *Shell) readLine(reader *bufio.Reader) (string, error) {
 			_, size := utf8.DecodeLastRune(line)
 			line = line[:len(line)-size]
 			sh.tabPending = false
+			nav.SyncDraft(string(line))
 			if sh.interactive {
 				fmt.Fprint(sh.stdout, "\b \b")
 			}
+		case 0x1b: // ESC — стрелки ↑/↓ (CSI или SS3)
+			line = sh.handleEscape(reader, line, nav)
 		default:
 			if r < 32 {
 				continue
@@ -78,11 +84,63 @@ func (sh *Shell) readLine(reader *bufio.Reader) (string, error) {
 			n := utf8.EncodeRune(buf[:], r)
 			line = append(line, buf[:n]...)
 			sh.tabPending = false
+			nav.SyncDraft(string(line))
 			if sh.interactive {
 				fmt.Fprint(sh.stdout, string(r))
 			}
 		}
 	}
+}
+
+func (sh *Shell) handleEscape(reader *bufio.Reader, line []byte, nav *history.Navigator) []byte {
+	b, err := reader.ReadByte()
+	if err != nil {
+		return line
+	}
+
+	var key byte
+	switch b {
+	case '[': // CSI: ESC [ A/B
+		key, err = reader.ReadByte()
+		if err != nil {
+			return line
+		}
+	case 'O': // SS3: ESC O A/B (application cursor keys)
+		key, err = reader.ReadByte()
+		if err != nil {
+			return line
+		}
+	default:
+		return line
+	}
+
+	var next string
+	var moved bool
+	switch key {
+	case 'A': // up
+		next, moved = nav.Up()
+	case 'B': // down
+		next, moved = nav.Down()
+	default:
+		return line
+	}
+	if !moved {
+		if sh.interactive {
+			fmt.Fprint(sh.stdout, "\a")
+		}
+		return line
+	}
+	return sh.replaceInputLine(line, next)
+}
+
+func (sh *Shell) replaceInputLine(old []byte, next string) []byte {
+	if sh.interactive {
+		// Стереть текущую строку ввода и напечатать выбранную из history.
+		fmt.Fprint(sh.stdout, "\r\x1b[2K$ ")
+		fmt.Fprint(sh.stdout, next)
+	}
+	sh.tabPending = false
+	return []byte(next)
 }
 
 func (sh *Shell) finishLine() {

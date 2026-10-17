@@ -91,6 +91,80 @@ func TestRun_EchoAndExit(t *testing.T) {
 	}
 }
 
+func TestRun_TypeHistoryIsBuiltin(t *testing.T) {
+	stdout, stderr, code := runShell("type history\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ history is a shell builtin\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_HistoryListing(t *testing.T) {
+	stdout, stderr, code := runShell("echo a\necho b\nhistory\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	want := "$ a\n$ b\n$     1 echo a\n    2 echo b\n    3 history\n$ "
+	if got := stdout; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_HistoryLimit(t *testing.T) {
+	stdout, stderr, code := runShell("echo a\necho b\necho c\nhistory 2\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	want := "$ a\n$ b\n$ c\n$     3 echo c\n    4 history 2\n$ "
+	if got := stdout; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_HistoryUpArrowExecutes(t *testing.T) {
+	// После echo hello — ↑ подставляет ту же команду, Enter выполняет снова.
+	stdout, stderr, code := runShell("echo hello\n\x1b[A\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ hello\n$ hello\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRun_HistoryUpDownArrow(t *testing.T) {
+	// echo a, echo b, затем ↑ ↑ ↓ Enter → echo b
+	stdout, stderr, code := runShell("echo a\necho b\n\x1b[A\x1b[A\x1b[B\nexit\n")
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if got, want := stdout, "$ a\n$ b\n$ b\n$ "; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
 func TestRun_DualPipelineBuiltinToExternal(t *testing.T) {
 	stdout, stderr, code := runShell("echo hello | cat\nexit\n")
 
