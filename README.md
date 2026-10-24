@@ -1,34 +1,62 @@
-[![progress-banner](https://backend.codecrafters.io/progress/shell/b80834cb-c534-43dd-b2b0-1eabbdb2b659)](https://app.codecrafters.io/users/davdmiv?r=2qF)
+# Shell (Go)
 
-This is a starting point for Go solutions to the
-["Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview).
+POSIX-подобная оболочка на Go — pet-проект по мотивам
+[CodeCrafters «Build Your Own Shell»](https://app.codecrafters.io/courses/shell/overview).
+Интерактивный REPL: разбор командной строки, builtins, внешние программы, пайпы, jobs, history и переменные.
 
-In this challenge, you'll build your own POSIX compliant shell that's capable of
-interpreting shell commands, running external programs and builtin commands like
-cd, pwd, echo and more. Along the way, you'll learn about shell command parsing,
-REPLs, builtin commands, and more.
+## Требования
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+- Go 1.27+ (как в `go.mod`)
 
-# Passing the first stage
+## Сборка и запуск
 
-The entry point for your `shell` implementation is in `app/main.go`. Study and
-uncomment the relevant code, then run the command below to execute the tests on
-our servers:
+Локально (сборка во временный бинарник и сразу запуск):
 
 ```sh
-codecrafters submit
+./your_program.sh
 ```
 
-Time to move on to the next stage!
+Вручную:
 
-# Stage 2 & beyond
+```sh
+go build -o myshell ./app
+./myshell
+```
 
-Note: This section is for stages 2 and beyond.
+Тесты:
 
-1. Ensure you have `go (1.27)` installed locally
-1. Run `./your_program.sh` to run your program, which is implemented in
-   `app/main.go`.
-1. Run `codecrafters submit` to submit your solution to CodeCrafters. Test
-   output will be streamed to your terminal.
+```sh
+go test ./...
+```
+
+## Возможности
+
+**Builtins:** `echo`, `pwd`, `cd` (в т.ч. `~`), `type`, `exit`, `jobs`, `history`, `complete`, `declare`
+
+**Внешние команды:** поиск в `PATH`, коды выхода без лишнего шума
+
+**Парсер:** кавычки (`'` / `"`), экранирование `\`, редиректы (`>`, `>>`, `<`, `2>`, `2>>`), фон (`&`), пайпы (`|`)
+
+**Пайплайны:** несколько команд через `|`, builtins в pipe, редиректы на краях
+
+**Фоновые jobs:** `cmd &`, builtin `jobs`, уведомления о завершении (`Done`)
+
+**Автодополнение (Tab):** команды и пути; programmable completion через `complete -C` / `-p` / `-r`
+
+**History:** in-memory список, `history` / `history N`, стрелки ↑/↓, `history -r` / `-w` / `-a`, `HISTFILE` (загрузка при старте, append при выходе)
+
+**Переменные:** `declare name=value`, `declare -p name`, раскрытие `$VAR` / `${VAR}` в аргументах (вне одинарных кавычек)
+
+## Структура
+
+```
+app/
+  main.go          # точка входа
+  shell/           # REPL, readline, исполнение pipeline
+  parser/          # токенизация и разбор
+  commands/        # builtins и внешние команды
+  completion/      # Tab-completion
+  history/         # история команд
+  jobs/            # фоновые задачи
+  vars/            # переменные оболочки
+```
